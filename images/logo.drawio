@@ -1,0 +1,13 @@
+<mxfile host="65bd71144e">
+    <diagram name="ページ1" id="YygL6r6pkE63_6q1Jy0S">
+        <mxGraphModel dx="654" dy="445" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3300" pageHeight="4681" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="xO8PAc4g9awEHSZxMYi9-6" value="&lt;span style=&quot;font-family: &amp;quot;Ubuntu Mono derivative Powerline&amp;quot;; font-weight: 700;&quot;&gt;&lt;font&gt;&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;p&lt;/font&gt;&lt;font style=&quot;color: rgb(228, 113, 0);&quot;&gt;v&lt;/font&gt;&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;e&lt;/font&gt;&lt;font style=&quot;color: rgb(228, 113, 0);&quot;&gt;c&lt;/font&gt;&lt;font style=&quot;color: light-dark(rgb(0, 0, 0), rgb(193, 193, 193));&quot;&gt;t&lt;/font&gt;&lt;font style=&quot;color: rgb(228, 113, 0);&quot;&gt;l&lt;/font&gt;&lt;/font&gt;&lt;/span&gt;" style="rounded=0;html=1;verticalAlign=bottom;fontColor=default;whiteSpace=wrap;strokeColor=none;fillColor=none;fontSize=128;" parent="1" vertex="1">
+                    <mxGeometry x="460" y="360" width="380" height="130" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

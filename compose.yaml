@@ -1,0 +1,8 @@
+services:
+  app:
+    build: .
+    container_name: pvectl-dev
+    volumes:
+      - ./app:/home/app
+    tty: true
+    stdin_open: true
