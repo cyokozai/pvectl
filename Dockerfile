@@ -11,7 +11,7 @@ COPY ./app /home/app
 WORKDIR /home/app
 
 RUN apk add --no-cache git && \
-    ([ ! -f go.mod ] && go mod init || echo "go.mod already exists") && \
+    ([ ! -f go.mod ] && go mod init app || echo "go.mod already exists") && \
     # go mod tidy && \
     go get gopkg.in/yaml.v3@latest && \
     go get github.com/google/go-cmp/cmp@latest && \
