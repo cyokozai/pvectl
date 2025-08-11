@@ -1,0 +1,62 @@
+name: Dependency Update
+
+# 毎週月曜日の午前9時（JST）に実行
+on:
+  schedule:
+    - cron: '0 0 * * 1' # UTC 00:00 = JST 09:00
+  workflow_dispatch: # 手動実行を許可
+
+jobs:
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Update npm dependencies
+        run: |
+          npm update
+          npm audit fix --force
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet package-lock.json; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.changes.outputs.changes == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update npm dependencies'
+          title: 'chore: update npm dependencies'
+          body: |
+            ## 依存関係の自動更新
+
+            このPRは自動的に生成され、npm依存関係を最新版に更新します。
+
+            ### 変更内容
+            - npm依存関係の更新
+            - セキュリティ脆弱性の修正
+
+            ### 確認事項
+            - [ ] テストが正常に通ることを確認
+            - [ ] 破壊的変更がないことを確認
+            - [ ] セキュリティ脆弱性が修正されていることを確認
+
+            _このPRは自動生成されました_
+          branch: chore/update-dependencies
+          delete-branch: true
