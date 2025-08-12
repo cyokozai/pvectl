@@ -26,8 +26,8 @@
   docker exec -it pvectl-dev go run main.go <options>
   ```
 
-- Access the container and run build command. 
+- Access the container and run build command.  
 
   ```shell
-  docker exec -it pvectl-dev go build main.go -o ./exe/pvectl
+  docker exec -it pvectl-dev go build -o main.go
   ```
