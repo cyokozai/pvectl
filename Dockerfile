@@ -10,16 +10,4 @@ COPY ./app /home/app
 
 WORKDIR /home/app
 
-RUN apk add --no-cache git && \
-    ([ ! -f go.mod ] && go mod init app || echo "go.mod already exists") && \
-    # go mod tidy && \
-    go get gopkg.in/yaml.v3@latest && \
-    go get github.com/google/go-cmp/cmp@latest && \
-    go get github.com/Telmate/proxmox-api-go@latest && \
-    go install golang.org/x/tools/cmd/goimports@latest && \
-    go install golang.org/x/lint/golint@latest && \
-    # go mod download && \
-    mkdir -p tmp && \
-    chmod -R 755 tmp
-
-CMD ["tail", "-f", "/dev/null"]
+CMD [ "tail", "-f", "/dev/null" ]
