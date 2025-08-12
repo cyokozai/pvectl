@@ -1,4 +1,4 @@
-![logo](images/logo.png)
+<img align="right" src="./images/logo.png" alt="logo" width=250cm>
 
 # pvectl
 
