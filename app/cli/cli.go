@@ -12,9 +12,9 @@ import (
 
 // InOut struct: holds the standard input/output/error streams
 type InOut struct {
-	StdIn  io.Reader // Standard input
-	StdOut io.Writer // Standard output
-	StdErr io.Writer // Standard error
+	StdIn  io.Reader  // Standard input
+	StdOut io.Writer  // Standard output
+	StdErr io.Writer  // Standard error
 }
 
 
@@ -30,16 +30,16 @@ func NewInOut() *InOut {
 
 // Command type: defines a function that takes arguments and InOut struct
 type Command func(
-	args []string, // Command line arguments
-	inOut *InOut,  // Input/Output streams
+	args []string, 	// Command line arguments
+	inOut *InOut,  	// Input/Output streams
 ) int
 
 
 // Run function: executes the command with the given input
 func Run(c Command) {
-	args := os.Args[1:] // Get command line arguments
-	inout := NewInOut()  // Create a new InOut instance
-	exitCode := c(args, inout) // Execute the command
+	args := os.Args[1:] 		// Get command line arguments
+	inout := NewInOut()  		// Create a new InOut instance
+	exitCode := c(args, inout) 	// Execute the command
 
-	os.Exit(exitCode) // Exit with the command's exit code
+	os.Exit(exitCode)  // Exit with the command's exit code
 }
