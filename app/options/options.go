@@ -17,7 +17,7 @@ type Options struct {
 
 
 // 
-func OptionsParser(args []string, inout *cli.InOut) (*Options, error) {
+func OptionParser(args []string, inout *cli.InOut) (*Options, error) {
 	f := flag.NewFlagSet("pvectl", flag.ContinueOnError) // Create a new flag set
 	f.SetOutput(inout.StdErr) 							 // Set the output for the flag set to standard error
 

@@ -11,7 +11,7 @@ import (
 
 // MainCommand function: prints "Hello World" to standard output
 func MainCommand(args []string, inout *cli.InOut) int {
-	options, err := OptionsParser(args, inout) // Parse command line options
+	options, err := OptionParser(args, inout) // Parse command line options
 	if err != nil {
 		fmt.Fprintf(inout.StdErr, "Error: %v\n", err) 	// Print error to standard error
 		log.Println("Error parsing options:", err)		// Log the error if any
@@ -25,7 +25,7 @@ func MainCommand(args []string, inout *cli.InOut) int {
 		
 		return 1
 	}
-	
+
 	return 0
 }
 
