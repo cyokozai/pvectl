@@ -8,5 +8,6 @@ import (
 
 
 func main() {
-	cli.Run(options.MainCommand)  // Run the main command
+	// Run the main command
+	cli.Run(options.MainCommand)
 }
