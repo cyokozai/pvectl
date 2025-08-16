@@ -39,6 +39,7 @@ func MainCommandByOptions(options *Options, inout *cli.InOut) error {
 }
 
 
+
 // // InteractiveCommand function: starts an interactive command line session
 // func InteractiveCommand(_ []string, inout *cli.InOut) int {
 // 	s := bufio.NewScanner(inout.StdIn) // Create a new scanner for standard input
