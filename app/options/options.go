@@ -10,14 +10,14 @@ import (
 
 // Options struct: holds the command line options
 type Options struct {
-	Foo string // Option for Foo
-	Bar string // Option for Bar
+	Foo     string // Option for Foo
+	Bar     string // Option for Bar
 	Version string // Option for Version
-	Help bool  // Option for Help
+	Help    bool   // Option for Help
 }
 
 
-// OptionParser function: parses command line options
+// OptionParser function: parses command-line arguments and returns configured Options.
 func OptionParser(args []string, inout *cli.InOut) (*Options, error) {
 	f := flag.NewFlagSet("pvectl", flag.ContinueOnError) // Create a new flag set
 	f.SetOutput(inout.StdErr) 							 // Set the output for the flag set to standard error
