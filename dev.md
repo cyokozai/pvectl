@@ -10,11 +10,11 @@
 - Access the container and run main.go.  
 
   ```shell
-  docker exec -it pvectl-dev go run main.go <options>
+  docker exec -it pvectl-dev go run app/main.go <options>
   ```
 
 - Access the container and run build command.  
 
   ```shell
-  docker exec -it pvectl-dev go build -o main.go
+  docker exec -it pvectl-dev go build -o app/main.go
   ```

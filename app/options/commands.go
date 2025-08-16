@@ -11,21 +11,21 @@ import (
 
 // MainCommand function: prints "Hello World" to standard output
 func MainCommand(args []string, inout *cli.InOut) int {
-	options, err := OptionsParser(args) // Parse command line options
+	options, err := OptionsParser(args, inout) // Parse command line options
 	if err != nil {
-		fmt.Fprintf(inout.StdErr, "Error: %v\n", err)  // Print error to standard error
-		log.Println("Error parsing options:", err) // Log the error if any
+		fmt.Fprintf(inout.StdErr, "Error: %v\n", err) 	// Print error to standard error
+		log.Println("Error parsing options:", err)		// Log the error if any
 		
 		return 1
 	}
 
 	if err := MainCommandByOptions(options, inout); err != nil {
-		fmt.Fprintf(inout.StdErr, "Error: %v\n", err)  // Print error to standard error
+		fmt.Fprintf(inout.StdErr, "Error: %v\n", err)  				 // Print error to standard error
 		log.Println("Error executing main command by options:", err) // Log the error if any
 		
 		return 1
 	}
-
+	
 	return 0
 }
 
