@@ -17,10 +17,10 @@ func TestMainCommand(t *testing.T) {
 	err := MainCommandByOptions(&Options{
 		Foo: "foo",
 		Bar: "bar",
-	}, &cli.ProcInout{
-		Stdin:  strings.NewReader(""),
-		Stdout: stdout,
-		Stderr: stderr,
+	}, &cli.InOut{
+		StdIn:  strings.NewReader(""),
+		StdOut: stdout,
+		StdErr: stderr,
 	})
 	if err != nil {
 		t.Fatalf("failed to run task: %v", err)
