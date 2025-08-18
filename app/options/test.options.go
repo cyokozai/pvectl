@@ -12,7 +12,7 @@ import (
 )
 
 
-func TestParseOptions(t *testing.T) {
+func TestOptionParser(t *testing.T) {
 	testCases := []struct {
 		Input    []string
 		Expected *Options
