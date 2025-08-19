@@ -74,9 +74,9 @@ func testFlagUsage(t *testing.T) {
 	stderr := bytes.Buffer{}
 
 	_, err := OptionParser([]string{"-h"}, &cli.InOut{
-		Stdin:  stdin,
-		Stdout: &stdout,
-		Stderr: &stderr,
+		StdIn:  stdin,
+		StdOut: &stdout,
+		StdErr: &stderr,
 	})
 	if err != nil {
 		t.Fatalf("failed to parse options: %v", err)

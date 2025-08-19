@@ -37,7 +37,7 @@ func MainCommand(args []string, inout *cli.InOut) int {
 
 // MainCommandByOptions function: executes the main command with the given options
 func MainCommandByOptions(options *Options, inout *cli.InOut) error {
-	fmt.Fprintf(inout.Stdout, "pvectl executed successfully\n")
+	fmt.Fprintf(inout.StdOut, "pvectl executed successfully\n")
 
 	return nil
 }
