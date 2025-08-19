@@ -32,8 +32,7 @@ func MainCommand(args []string, inout *cli.InOut) int {
 
 // MainCommandByOptions function: executes the main command with the given options
 func MainCommandByOptions(options *Options, inout *cli.InOut) error {
-	fmt.Fprintf(inout.StdOut, "foo: %s\n", options.Foo)
-	fmt.Fprintf(inout.StdOut, "bar: %s\n", options.Bar)
-
+	fmt.Fprintf(inout.StdOut, "something-required: %s\n", options.SomethingRequired)
+	
 	return nil
 }
