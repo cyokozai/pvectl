@@ -12,9 +12,7 @@ func TestMainCommandByOptions(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	err := MainCommandByOptions(&Options{
-		SomethingRequired: "something",
-	}, &cli.InOut{
+	err := MainCommandByOptions(&Options{}, &cli.InOut{
 		StdIn:  strings.NewReader(""),
 		StdOut: stdout,
 		StdErr: stderr,

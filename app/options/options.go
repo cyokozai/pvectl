@@ -10,8 +10,9 @@ import (
 
 // Options struct: holds the command line options
 type Options struct {
-	SomethingRequired string
-	Help              bool
+	Foo  string
+	Bar  string
+	Help bool
 }
 
 
@@ -21,7 +22,14 @@ func OptionParser(args []string, inout *cli.InOut) (*Options, error) {
 	f.SetOutput(inout.StdErr)
 
 	options := &Options{}
-	f.StringVar(&options.SomethingRequired, "something-required", "", "Something required")
+	f.StringVar(&options.Foo, "foo", "", "foo")
+	f.StringVar(&options.Bar, "bar", "", "bar")
+
+	f.Usage = func() {
+		inout.StdErr.Write([]byte("Usage: pvectl [options]\n"))
+		inout.StdErr.Write([]byte("OPTIONS\n"))
+		f.PrintDefaults()
+	}
 
 	if err := f.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -31,10 +39,6 @@ func OptionParser(args []string, inout *cli.InOut) (*Options, error) {
 		}
 
 		return nil, err
-	}
-
-	if options.SomethingRequired == "" {
-		return nil, errors.New("something-required is required")
 	}
 
 	return options, nil

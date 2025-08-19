@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"log"
+	// "log"
 	"github.com/google/go-cmp/cmp"
 	"github.com/cyokozai/pvectl/app/cli"
 )
@@ -17,12 +17,6 @@ func TestOptionParser_Success(t *testing.T) {
 		Input    []string
 		Expected *Options
 	}{
-		{
-			Input: []string{"-something-required", "something"},
-			Expected: &Options{
-				SomethingRequired: "something",
-			},
-		},
 		{
 			Input: []string{"-h"},
 			Expected: &Options{
@@ -35,7 +29,7 @@ func TestOptionParser_Success(t *testing.T) {
 		stdout := &bytes.Buffer{}
 		stderr := &bytes.Buffer{}
 
-		opts, err := OptionParser(testCase.Input, &cli.InOut{
+		options, err := OptionParser(testCase.Input, &cli.InOut{
 			StdIn:  strings.NewReader(""),
 			StdOut: stdout,
 			StdErr: stderr,
@@ -44,8 +38,8 @@ func TestOptionParser_Success(t *testing.T) {
 			t.Fatalf("failed to parse options: %v", err)
 		}
 
-		if !reflect.DeepEqual(opts, testCase.Expected) {
-			t.Error(cmp.Diff(opts, testCase.Expected))
+		if !reflect.DeepEqual(options, testCase.Expected) {
+			t.Error(cmp.Diff(options, testCase.Expected))
 		}
 	}
 }
@@ -71,5 +65,32 @@ func TestOptionParser_Error(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected error, got nil")
 		}
+	}
+}
+
+func testFlagUsage(t *testing.T) {
+	stdin := strings.NewReader("")
+	stdout := bytes.Buffer{}
+	stderr := bytes.Buffer{}
+
+	_, err := OptionParser([]string{"-h"}, &cli.InOut{
+		Stdin:  stdin,
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+	if err != nil {
+		t.Fatalf("failed to parse options: %v", err)
+	}
+
+	expected := `Usage: pvectl [options]
+OPTIONS
+  -bar string
+    	bar
+  -foo string
+    	foo
+`
+
+	if stderr.String() != expected {
+		t.Errorf("want %q, got %q", expected, stderr.String())
 	}
 }

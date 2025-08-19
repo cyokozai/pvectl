@@ -19,6 +19,11 @@ func MainCommand(args []string, inout *cli.InOut) int {
 		return 1
 	}
 
+	if options.Help {
+		return 0
+	}
+
+
 	if err := MainCommandByOptions(options, inout); err != nil {
 		fmt.Fprintf(inout.StdErr, "Error: %v\n", err)  				 // Print error to standard error
 		log.Println("Error executing main command by options:", err) // Log the error if any
@@ -32,7 +37,7 @@ func MainCommand(args []string, inout *cli.InOut) int {
 
 // MainCommandByOptions function: executes the main command with the given options
 func MainCommandByOptions(options *Options, inout *cli.InOut) error {
-	fmt.Fprintf(inout.StdOut, "something-required: %s\n", options.SomethingRequired)
-	
+	fmt.Fprintf(inout.Stdout, "pvectl executed successfully\n")
+
 	return nil
 }
