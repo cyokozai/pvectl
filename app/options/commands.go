@@ -37,24 +37,3 @@ func MainCommandByOptions(options *Options, inout *cli.InOut) error {
 
 	return nil
 }
-
-
-
-// // InteractiveCommand function: starts an interactive command line session
-// func InteractiveCommand(_ []string, inout *cli.InOut) int {
-// 	s := bufio.NewScanner(inout.StdIn) // Create a new scanner for standard input
-
-// 	for s.Scan() {
-// 		textline := s.Text() // Get the text line from the scanner
-// 		fmt.Fprintf(inout.StdOut, "Hi, %s!\n", textline) // Print greeting to standard output
-// 	}
-	
-// 	if err := s.Err(); err != nil {
-// 		fmt.Fprintln(inout.StdErr, "Error: ", err) // Print error to standard error
-// 		log.Println("Error reading input:", err) // Log the error if any
-
-// 		return 1
-// 	}
-	
-// 	return 0
-// }

@@ -12,16 +12,15 @@ import (
 )
 
 
-func TestOptionParser(t *testing.T) {
+func TestOptionParser_Success(t *testing.T) {
 	testCases := []struct {
 		Input    []string
 		Expected *Options
 	}{
 		{
-			Input: []string{"-foo", "foo", "-bar", "bar"},
+			Input: []string{"-something-required", "something"},
 			Expected: &Options{
-				Foo: "foo",
-				Bar: "bar",
+				SomethingRequired: "something",
 			},
 		},
 		{
@@ -43,12 +42,34 @@ func TestOptionParser(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("failed to parse options: %v", err)
-			log.Println("Error parsing options:", err)
 		}
 
 		if !reflect.DeepEqual(opts, testCase.Expected) {
 			t.Error(cmp.Diff(opts, testCase.Expected))
-			log.Println("Parsed options do not match expected:", cmp.Diff(opts, testCase.Expected))
+		}
+	}
+}
+
+func TestOptionParser_Error(t *testing.T) {
+	testCases := []struct {
+		Input []string
+	}{
+		{
+			Input: []string{},
+		},
+	}
+
+	for _, testCase := range testCases {
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+
+		_, err := OptionParser(testCase.Input, &cli.InOut{
+			StdIn:  strings.NewReader(""),
+			StdOut: stdout,
+			StdErr: stderr,
+		})
+		if err == nil {
+			t.Fatalf("expected error, got nil")
 		}
 	}
 }

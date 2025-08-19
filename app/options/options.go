@@ -10,34 +10,19 @@ import (
 
 // Options struct: holds the command line options
 type Options struct {
-	Foo     string // Option for Foo
-	Bar     string // Option for Bar
-	Version string // Option for Version
-	Help    bool   // Option for Help
+	SomethingRequired string
+	Help              bool
 }
 
 
 // OptionParser function: parses command-line arguments and returns configured Options.
 func OptionParser(args []string, inout *cli.InOut) (*Options, error) {
-	f := flag.NewFlagSet("pvectl", flag.ContinueOnError) // Create a new flag set
-	f.SetOutput(inout.StdErr) 							 // Set the output for the flag set to standard error
+	f := flag.NewFlagSet("pvectl", flag.ContinueOnError)
+	f.SetOutput(inout.StdErr)
 
-	options := &Options{} // Create a new Options instance
+	options := &Options{}
+	f.StringVar(&options.SomethingRequired, "something-required", "", "Something required")
 
-	// ↓↓↓ Define the command-line options ↓↓↓
-
-	// Define Foo option
-	f.StringVar(&options.Foo, "foo", "hello", "Foo option 01")
-
-	// Define Bar option
-	f.StringVar(&options.Bar, "bar", "", "Bar option 02")
-
-	// Define Version option
-	f.StringVar(&options.Version, "version", "", "Show version information.")
-
-	// ↑↑↑ Define the command-line options ↑↑↑
-	
-	// Help flag
 	if err := f.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			options.Help = true
@@ -46,6 +31,10 @@ func OptionParser(args []string, inout *cli.InOut) (*Options, error) {
 		}
 
 		return nil, err
+	}
+
+	if options.SomethingRequired == "" {
+		return nil, errors.New("something-required is required")
 	}
 
 	return options, nil
