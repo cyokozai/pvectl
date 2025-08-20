@@ -8,7 +8,7 @@ import (
 )
 
 // MainCommand function: prints "Hello World" to standard output
-var MainCommand = cli.Command("pvectl", []SubCommands{
+var MainCommand = cli.Commands("pvectl", []cli.SubCommands{
 	{
 		Name:        "foo",
 		Description: "foo command",

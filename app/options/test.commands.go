@@ -8,21 +8,56 @@ import (
 	"github.com/cyokozai/pvectl/app/cli"
 )
 
-func TestMainCommandByOptions(t *testing.T) {
+func TestMainCommandHelp(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
-	err := MainCommandByOptions(&Options{}, &cli.InOut{
+	_ = MainCommand([]string{"-h"}, &cli.InOut{
 		StdIn:  strings.NewReader(""),
 		StdOut: stdout,
 		StdErr: stderr,
 	})
-	if err != nil {
-		t.Fatalf("failed to run task: %v", err)
-	}
 
-	expected := "something-required: something\n"
-	if stdout.String() != expected {
-		t.Errorf("want %q, got %q", expected, stdout.String())
+	expected := `Usage: recipe5 [command]
+
+COMMANDS
+  foo
+    	foo command
+  bar
+    	bar command
+`
+
+	if stderr.String() != expected {
+		t.Errorf("want %q, got %q", expected, stderr.String())
+	}
+}
+
+func TestMainCommandFoo(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitStatus := MainCommand([]string{"foo"}, &cli.InOut{
+		StdIn:  strings.NewReader(""),
+		StdOut: stdout,
+		StdErr: stderr,
+	})
+
+	if exitStatus != 0 {
+		t.Errorf("want exit status 0, got %d", exitStatus)
+	}
+}
+
+func TestMainCommandBar(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	exitStatus := MainCommand([]string{"bar"}, &cli.InOut{
+		StdIn:  strings.NewReader(""),
+		StdOut: stdout,
+		StdErr: stderr,
+	})
+
+	if exitStatus != 0 {
+		t.Errorf("want exit status 0, got %d", exitStatus)
 	}
 }

@@ -29,14 +29,23 @@ func NewInOut() *InOut {
 
 
 // Command type: defines a function that takes arguments and InOut struct
-type Command func(
+type Commands func(
 	args []string, 	// Command line arguments
-	inOut *InOut,  	// Input/Output streams
+	inOut *InOut  	// Input/Output streams
 ) int
 
 
+type SubCommands struct {
+	Name        string
+	Description string
+	Run         func(
+					args []string, 
+					inout *InOut
+				) int
+}
+
 // Run function: executes the command with the given input
-func Run(c Command) {
+func Run(c Commands) {
 	args := os.Args[1:] 		// Get command line arguments
 	inout := NewInOut()  		// Create a new InOut instance
 	exitCode := c(args, inout) 	// Execute the command
