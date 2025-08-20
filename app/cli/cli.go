@@ -1,5 +1,6 @@
 package cli
 
+
 import (
 	// "flag"
 	// "fmt"
@@ -29,26 +30,22 @@ func NewInOut() *InOut {
 
 
 // Command type: defines a function that takes arguments and InOut struct
-type Commands func(
-	args []string, 	// Command line arguments
-	inOut *InOut  	// Input/Output streams
-) int
+type Commands func(args []string, inOut *InOut) int
 
 
+// SubCommands type: defines a sub-command with a name, description, and run function
 type SubCommands struct {
 	Name        string
 	Description string
-	Run         func(
-					args []string, 
-					inout *InOut
-				) int
+	Run         func(args []string, inout *InOut) int
 }
+
 
 // Run function: executes the command with the given input
 func Run(c Commands) {
 	args := os.Args[1:] 		// Get command line arguments
 	inout := NewInOut()  		// Create a new InOut instance
 	exitCode := c(args, inout) 	// Execute the command
-
+	
 	os.Exit(exitCode)  // Exit with the command's exit code
 }
