@@ -1,32 +1,25 @@
 package options
 
 import (
-	// "bufio"
 	"fmt"
 	"log"
 	"github.com/cyokozai/pvectl/app/cli"
 )
 
 // MainCommand function: prints "Hello World" to standard output
-var MainCommand = cli.Commands("pvectl", []cli.SubCommands{
-	{
-		Name:        "foo",
-		Description: "foo command",
-		Run: func(args []string, inout *cli.InOut) int {
-			fmt.Fprintf(inout.StdOut, "foo command executed successfully\n")
-			log.Println("foo command executed successfully")
+func MainCommand(args []string, inout *cli.InOut) int {
+	options, err := OptionParser(args, inout)
+	if err != nil {
+		log.Println("Error parsing options:", err)
 
-			return 0
-		},
-	},
-	{
-		Name:        "bar",
-		Description: "bar command",
-		Run: func(args []string, inout *cli.InOut) int {
-			fmt.Fprintf(inout.StdOut, "bar command executed successfully\n")
-			log.Println("bar command executed successfully")
+		return 1
+	}
+	if options.Help {
+		return 0
+	}
 
-			return 0
-		},
-	},
-})
+	fmt.Fprintf(inout.StdOut, "foo: %s\n", options.Foo)
+	fmt.Fprintf(inout.StdOut, "bar: %s\n", options.Bar)
+
+	return 0
+}

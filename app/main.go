@@ -8,6 +8,5 @@ import (
 
 
 func main() {
-	// Run the main command
-	cli.Run(cli.
+	cli.Run(cli.CommandCompletion(options.MainCommand, cli.CompletionByFlags(cli.FlagAnalyzer(&options.Options{})))) // Run the main command
 }
