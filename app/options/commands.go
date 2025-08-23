@@ -1,37 +1,25 @@
 package options
 
-
 import (
-	"bufio"
 	"fmt"
 	"log"
-    "github.com/cyokozai/pvectl/app/cli"
+	"github.com/cyokozai/pvectl/app/cli"
 )
 
-
 // MainCommand function: prints "Hello World" to standard output
-func MainCommand(_ []string, inout *cli.InOut) int {
-	fmt.Fprintln(inout.StdOut, "Hello World") // Print "Hello World" to standard output
-
-	return 0
-}
-
-
-// InteractiveCommand function: starts an interactive command line session
-func InteractiveCommand(_ []string, inout *cli.InOut) int {
-	s := bufio.NewScanner(inout.StdIn) // Create a new scanner for standard input
-
-	for s.Scan() {
-		textline := s.Text() // Get the text line from the scanner
-		fmt.Fprintf(inout.StdOut, "Hi, %s!\n", textline) // Print greeting to standard output
-	}
-	
-	if err := s.Err(); err != nil {
-		fmt.Fprintln(inout.StdErr, "Error: ", err) // Print error to standard error
-		log.Println("Error reading input:", err) // Log the error if any
+func MainCommand(args []string, inout *cli.InOut) int {
+	options, err := OptionParser(args, inout)
+	if err != nil {
+		log.Println("Error parsing options:", err)
 
 		return 1
 	}
-	
+	if options.Help {
+		return 0
+	}
+
+	fmt.Fprintf(inout.StdOut, "foo: %s\n", options.Foo)
+	fmt.Fprintf(inout.StdOut, "bar: %s\n", options.Bar)
+
 	return 0
 }

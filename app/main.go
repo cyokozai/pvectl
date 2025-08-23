@@ -3,10 +3,10 @@ package main
 
 import (
     "github.com/cyokozai/pvectl/app/cli"
-    // "github.com/cyokozai/pvectl/app/options"
+    "github.com/cyokozai/pvectl/app/options"
 )
 
 
 func main() {
-	cli.Run("hello world")
+	cli.Run(cli.CommandCompletion(options.MainCommand, cli.CompletionByFlags(cli.FlagAnalyzer(&options.Options{})))) // Run the main command
 }
