@@ -24,11 +24,10 @@ type InOut struct {
 // NewInOut function: creates a new InOut struct
 func NewInOut() *InOut {
 	env := make(map[string]string)
+
 	for _, e := range os.Environ() {
 		parts := strings.SplitN(e, "=", 2)
-		if len(parts) == 2 {
-			env[parts[0]] = parts[1]
-		}
+		env[parts[0]] = parts[1]
 	}
 
 	return &InOut{
@@ -41,7 +40,7 @@ func NewInOut() *InOut {
 
 
 // Command type: defines a function that takes arguments and InOut struct
-type Commands func(args []string, inOut *InOut) int
+type Commands func(args []string, inout *InOut) int
 
 
 // SubCommands type: defines a sub-command with a name, description, and run function
@@ -54,20 +53,25 @@ type SubCommands struct {
 
 // Run function: executes the command with the given input
 func Run(c Commands) {
-	args := os.Args[1:] 		// Get command line arguments
-	inout := NewInOut()  		// Create a new InOut instance
+	args  	 := os.Args[1:] 	// Get command line arguments
+	inout 	 := NewInOut()  	// Create a new InOut instance
 	exitCode := c(args, inout) 	// Execute the command
 	
 	os.Exit(exitCode)  // Exit with the command's exit code
 }
 
+
+// Flag struct: holds information about a command-line flag
 type Flag struct {
 	FlagName    string
 	Name        string
 	Description string
+	Type        string
 }
 
-func FlagAnalizer(options any) []Flag {
+
+// FlagAnalyzer function: analyzes the flags in the given options struct
+func FlagAnalyzer(options any) []Flag {
 	flags := make([]Flag, 0)
 	t 	  := reflect.TypeOf(options).Elem()
 	m 	  := t.NumField()

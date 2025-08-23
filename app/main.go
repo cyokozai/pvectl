@@ -9,5 +9,5 @@ import (
 
 func main() {
 	// Run the main command
-	cli.Run(options.MainCommand)
+	cli.Run(cli.
 }
