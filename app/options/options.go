@@ -24,6 +24,7 @@ func OptionParser(args []string, inout *cli.InOut) (*Options, error) {
 	if err := cli.FlagParser(`pvectl`, args, options); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			options.Help = true
+			
 			return options, nil
 		}
 		return nil, fmt.Errorf("failed to parse flags: %w", err)

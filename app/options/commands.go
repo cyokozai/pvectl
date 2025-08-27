@@ -9,20 +9,22 @@ import (
 
 
 // SubCommands for the main command
-var subCmds = []cli.SubCommand{
+var subCmds = []cli.SubCommands{
 	{
 		Name:        "foo",
 		Description: "foo command",
-		Run: func(args []string, inout *cli.ProcInout) int {
-			fmt.Fprintf(inout.Stdout, "foo command executed successfully\n")
+		Run: func(args []string, inout *cli.InOut) int {
+			fmt.Fprintf(inout.StdOut, "foo command executed successfully\n")
+
 			return 0
 		},
 	},
 	{
 		Name:        "bar",
 		Description: "bar command",
-		Run: func(args []string, inout *cli.ProcInout) int {
-			fmt.Fprintf(inout.Stdout, "bar command executed successfully\n")
+		Run: func(args []string, inout *cli.InOut) int {
+			fmt.Fprintf(inout.StdOut, "bar command executed successfully\n")
+
 			return 0
 		},
 	},
@@ -39,6 +41,7 @@ func NewCommand(name string, commands []cli.SubCommands) cli.Commands {
 		}
 		if err := flags.Parse(args); err != nil {
 			if err == flag.ErrHelp {
+				fmt.Fprintf(inout.StdOut, "Hello\n")
 				return 0
 			}
 
@@ -60,14 +63,20 @@ func NewCommand(name string, commands []cli.SubCommands) cli.Commands {
 			return 1
 		}
 		if options.Help {
+			fmt.Fprintf(inout.StdOut, "Hello\n")
 			return 0
 		}
-		
+
+		cmdName := flags.Arg(0)
+        cmdArgs := flags.Args()[1:]
 		for _, c := range commands {
-			if c.Name == flags.Arg(0) {
-				return c.Run(flags.Args()[1:], inout)
+			if c.Name == cmdName {
+				return c.Run(cmdArgs, inout)
 			}
 		}
+
+		fmt.Fprintf(inout.StdErr, "error: unknown command %q\n", cmdName)
+		flags.Usage()
 
 		return 1
 	}
@@ -75,4 +84,4 @@ func NewCommand(name string, commands []cli.SubCommands) cli.Commands {
 
 
 // MainCommand is the entry point for the CLI
-var MainCommand = cli.NewCommand("recipe5", subCmds)
+var MainCommand = NewCommand("pvectl", subCmds)
