@@ -61,7 +61,7 @@ func Run(c Commands) {
 }
 
 
-func HelpPrint(c Commands) {
+func HelpPrint(c Commands, inout *InOut) {
 	
 }
 
