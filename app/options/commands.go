@@ -31,6 +31,7 @@ var subCmds = []cli.SubCommands{
 }
 
 
+// NewCommand function: creates a new command with the given name and sub-commands
 func NewCommand(name string, commands []cli.SubCommands) cli.Commands {
 	return func(args []string, inout *cli.InOut) int {
 		flags := flag.NewFlagSet(name, flag.ContinueOnError)
@@ -71,6 +72,11 @@ func NewCommand(name string, commands []cli.SubCommands) cli.Commands {
         cmdArgs := flags.Args()[1:]
 		for _, c := range commands {
 			if c.Name == cmdName {
+				if c.Name == "help" {
+					fmt.Fprintf(inout.StdOut, "Hello\n")
+					return 0
+				}
+
 				return c.Run(cmdArgs, inout)
 			}
 		}

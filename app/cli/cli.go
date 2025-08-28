@@ -57,7 +57,12 @@ func Run(c Commands) {
 	inout 	 := NewInOut()  	// Create a new InOut instance
 	exitCode := c(args, inout) 	// Execute the command
 	
-	os.Exit(exitCode)  // Exit with the command's exit code
+	os.Exit(exitCode)  			// Exit with the command's exit code
+}
+
+
+func HelpPrint(c Commands) {
+	
 }
 
 

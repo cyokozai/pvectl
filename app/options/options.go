@@ -21,12 +21,14 @@ type Options struct {
 func OptionParser(args []string, inout *cli.InOut) (*Options, error) {
 	options := &Options{}
 
-	if err := cli.FlagParser(`pvectl`, args, options); err != nil {
+	err := cli.FlagParser(`pvectl`, args, options)
+	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			options.Help = true
 			
 			return options, nil
 		}
+		
 		return nil, fmt.Errorf("failed to parse flags: %w", err)
 	}
 
