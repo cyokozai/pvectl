@@ -85,6 +85,13 @@ func (cr *CommandRunner) Run(args []string, inout *InOut) int {
 
 			return 1 // Return error if global flags are not parsed
 		}
+
+		helpField := reflect.ValueOf(cr.GlobalFlags).Elem().FieldByName("Help")
+		if helpField.Bool() && helpField.IsValid() {
+			cr.printGlobalHelp(inout)
+			
+			return 0 // Display help for global flags
+		}
 	}
 
 	// If no subcommands are provided, display help
@@ -184,7 +191,11 @@ func (cr *CommandRunner) printGlobalHelp(inout *InOut) {
 		fmt.Fprintf(inout.StdOut, "\nGlobal Flags:\n")
 		flags := FlagAnalyzer(cr.GlobalFlags)
 		for _, f := range flags {
-			fmt.Fprintf(inout.StdOut, "  --%-15s %s\n", f.Name, f.Description)
+			if f.Short != "" {
+				fmt.Fprintf(inout.StdOut, "  -%-1s, --%-15s %s\n", f.Short, f.Name, f.Description)
+			} else {
+				fmt.Fprintf(inout.StdOut, "  --%-15s %s\n", f.Name, f.Description)
+			}
 		}
 	}
 
@@ -219,6 +230,7 @@ func (cr *CommandRunner) printSubCommandHelp(cmdName string, inout *InOut) int {
 type Flag struct {
 	FlagName    string
 	Name        string
+	Short       string
 	Description string
 	Type        string
 }
@@ -268,6 +280,9 @@ func FlagParser(name string, args []string, options any) error {
 			flags.StringVar(f.Addr().Interface().(*string), fl.Name, f.String(), fl.Description)
 		case "bool":
 			flags.BoolVar(f.Addr().Interface().(*bool), fl.Name, f.Bool(), fl.Description)
+			if fl.Short != "" {
+				flags.BoolVar(f.Addr().Interface().(*bool), fl.Short, f.Bool(), fl.Description)
+			}
 		case "int":
 			flags.IntVar(f.Addr().Interface().(*int), fl.Name, int(f.Int()), fl.Description)
 		}
