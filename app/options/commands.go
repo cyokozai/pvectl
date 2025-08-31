@@ -1,93 +1,82 @@
 package options
 
 import (
-	"flag"
 	"fmt"
-	"log"
 	"github.com/cyokozai/pvectl/app/cli"
 )
 
+// FooFlags struct: flags for the foo command
+type FooFlags struct {
+	Verbose bool `name:"verbose" description:"Enable verbose output"`
+}
 
-// SubCommands for the main command
-var subCmds = []cli.SubCommands{
+// BarFlags struct: flags for the bar command
+type BarFlags struct {
+	Output string `name:"output" description:"Output format (json|yaml|text)"`
+	Quiet  bool   `name:"quiet" description:"Suppress output"`
+}
+
+// subCommands variable: implementation of subcommands
+var subCommands = []cli.SubCommands{
 	{
 		Name:        "foo",
-		Description: "foo command",
-		Run: func(args []string, inout *cli.InOut) int {
-			fmt.Fprintf(inout.StdOut, "foo command executed successfully\n")
+		Description: "foo command - execute basic operations",
+		Usage:       "pvectl foo [--verbose]",
+		Flags:       &FooFlags{},
+		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
+			if flags != nil {
+				fooFlags := flags.(*FooFlags)
+				if fooFlags.Verbose {
+					fmt.Fprintf(inout.StdOut, "foo command executed successfully with verbose output\n")
+				} else {
+					fmt.Fprintf(inout.StdOut, "foo command executed successfully\n")
+				}
+			} else {
+				fmt.Fprintf(inout.StdOut, "foo command executed successfully\n")
+			}
 
 			return 0
 		},
 	},
 	{
 		Name:        "bar",
-		Description: "bar command",
-		Run: func(args []string, inout *cli.InOut) int {
-			fmt.Fprintf(inout.StdOut, "bar command executed successfully\n")
-
+		Description: "bar command - execute data processing",
+		Usage:       "pvectl bar [--output FORMAT] [--quiet]",
+		Flags:       &BarFlags{},
+		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
+			if flags != nil {
+				barFlags := flags.(*BarFlags)
+				output := "default"
+				if barFlags.Output != "" {
+					output = barFlags.Output
+				}
+				if barFlags.Quiet {
+					// Quiet
+				} else {
+					fmt.Fprintf(inout.StdOut, "bar command executed successfully with output format: %s\n", output)
+				}
+			} else {
+				fmt.Fprintf(inout.StdOut, "bar command executed successfully\n")
+			}
+			
 			return 0
 		},
 	},
 }
 
-
-// NewCommand function: creates a new command with the given name and sub-commands
-func NewCommand(name string, commands []cli.SubCommands) cli.Commands {
-	return func(args []string, inout *cli.InOut) int {
-		flags := flag.NewFlagSet(name, flag.ContinueOnError)
-		flags.SetOutput(inout.StdErr)
-		flags.Usage = func() {
-			fmt.Fprintf(inout.StdErr, "Usage: %s [options] [arguments]\n", name)
-			flags.PrintDefaults()
-		}
-		if err := flags.Parse(args); err != nil {
-			if err == flag.ErrHelp {
-				fmt.Fprintf(inout.StdOut, "Hello\n")
-				return 0
-			}
-
-			log.Println("Error parsing flags:", err)
-
-			return 1
-		}
-		if flags.NArg() < 1 {
-			fmt.Fprintf(inout.StdErr, "error: no command provided\n")
-			flags.Usage()
-
-			return 1
-		}
-
-		options, err := OptionParser(args, inout)
-		if err != nil {
-			log.Println("Error parsing options:", err)
-
-			return 1
-		}
-		if options.Help {
-			fmt.Fprintf(inout.StdOut, "Hello\n")
-			return 0
-		}
-
-		cmdName := flags.Arg(0)
-        cmdArgs := flags.Args()[1:]
-		for _, c := range commands {
-			if c.Name == cmdName {
-				if c.Name == "help" {
-					fmt.Fprintf(inout.StdOut, "Hello\n")
-					return 0
-				}
-
-				return c.Run(cmdArgs, inout)
-			}
-		}
-
-		fmt.Fprintf(inout.StdErr, "error: unknown command %q\n", cmdName)
-		flags.Usage()
-
-		return 1
+// MainCommandRunner: create the main command runner
+var MainCommandRunner = func() *cli.CommandRunner {
+	runner := cli.NewCommandRunner(
+		"pvectl",
+		"Proxmox VE instance management CLI tool",
+		"pvectl [global-flags] <command> [command-flags] [arguments...]",
+		&Options{},
+	)
+	
+	// Add subcommands
+	for _, cmd := range subCommands {
+		runner.AddSubCommand(cmd)
 	}
-}
-
-
-// MainCommand is the entry point for the CLI
-var MainCommand = NewCommand("pvectl", subCmds)
+	
+	return runner
+}()
