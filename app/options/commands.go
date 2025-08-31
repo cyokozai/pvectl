@@ -6,6 +6,10 @@ import (
 	"github.com/cyokozai/pvectl/app/cli"
 )
 
+type HelpFlags struct {
+	Help bool `name:"help" description:"Show help"`
+}
+
 // FooFlags struct: flags for the foo command
 type FooFlags struct {
 	Verbose bool `name:"verbose" description:"Enable verbose output"`
@@ -19,52 +23,16 @@ type BarFlags struct {
 
 type HelloFlags struct {
 	Verbose bool `name:"verbose" description:"Enable verbose output"`
-
 }
 
 // subCommands variable: implementation of subcommands
 var subCommands = []cli.SubCommands{
 	{
-		Name:        "foo",
-		Description: "foo command - execute basic operations",
-		Usage:       "pvectl foo [--verbose]",
-		Flags:       &FooFlags{},
+		Name:        "help",
+		Description: "help command - show help",
+		Usage:       "pvectl help [command]",
+		Flags:       &HelpFlags{},
 		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
-			if flags != nil {
-				fooFlags := flags.(*FooFlags)
-				if fooFlags.Verbose {
-					fmt.Fprintf(inout.StdOut, "foo command executed successfully with verbose output\n")
-				} else {
-					fmt.Fprintf(inout.StdOut, "foo command executed successfully\n")
-				}
-			} else {
-				fmt.Fprintf(inout.StdOut, "foo command executed successfully\n")
-			}
-
-			return 0
-		},
-	},
-	{
-		Name:        "bar",
-		Description: "bar command - execute data processing",
-		Usage:       "pvectl bar [--output FORMAT] [--quiet]",
-		Flags:       &BarFlags{},
-		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
-			if flags != nil {
-				barFlags := flags.(*BarFlags)
-				output := "default"
-				if barFlags.Output != "" {
-					output = barFlags.Output
-				}
-				if barFlags.Quiet {
-					// Quiet
-				} else {
-					fmt.Fprintf(inout.StdOut, "bar command executed successfully with output format: %s\n", output)
-				}
-			} else {
-				fmt.Fprintf(inout.StdOut, "bar command executed successfully\n")
-			}
-
 			return 0
 		},
 	},
