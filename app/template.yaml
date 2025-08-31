@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Config
+preferences: {}
+users:
+- name: admin
+  user:
+    client-certificate: /path/to/pve-api-token.pem
+    client-key: /path/to/pve-api-key.pem
+    # or
+    # token: pve-token-xxxxx
+    # or
+    # username: admin@pve
+    # password: your-password
+clusters:
+- name: production-pve
+  cluster:
+    server: https://pve.example.com:8006
+    certificate-authority: /path/to/ca.crt
+    # or
+    # insecure-skip-tls-verify: true
+- name: development-pve
+  cluster:
+    server: https://dev-pve.example.com:8006
+    insecure-skip-tls-verify: true
+contexts:
+- name: production
+  context:
+    cluster: production-pve
+    user: admin
+    namespace: default
+- name: development
+  context:
+    cluster: development-pve
+    user: admin
+    namespace: default
+current-context: production
