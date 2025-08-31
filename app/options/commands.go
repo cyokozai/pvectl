@@ -2,6 +2,7 @@ package options
 
 import (
 	"fmt"
+
 	"github.com/cyokozai/pvectl/app/cli"
 )
 
@@ -14,6 +15,11 @@ type FooFlags struct {
 type BarFlags struct {
 	Output string `name:"output" description:"Output format (json|yaml|text)"`
 	Quiet  bool   `name:"quiet" description:"Suppress output"`
+}
+
+type HelloFlags struct {
+	Verbose bool `name:"verbose" description:"Enable verbose output"`
+
 }
 
 // subCommands variable: implementation of subcommands
@@ -58,6 +64,34 @@ var subCommands = []cli.SubCommands{
 			} else {
 				fmt.Fprintf(inout.StdOut, "bar command executed successfully\n")
 			}
+
+			return 0
+		},
+	},
+	{
+		Name:        "hello",
+		Description: "hello command - display greeting message",
+		Usage:       "pvectl hello [NAME] [--verbose]",
+		Flags:       &HelloFlags{},
+		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
+			if flags != nil {
+				helloFlags := flags.(*HelloFlags)
+				if helloFlags.Verbose {
+					fmt.Fprintf(inout.StdOut, "Hello World command executed with verbose output\n")
+				} else {
+					fmt.Fprintf(inout.StdOut, "Hello World command executed\n")
+				}
+			} else {
+				fmt.Fprintf(inout.StdOut, "Hello World command executed\n")
+			}
+			
+			// If an argument is specified, display the greeting message
+			if len(args) > 0 {
+				name := args[0]
+				fmt.Fprintf(inout.StdOut, "Hello, %s!\n", name)
+			} else {
+				fmt.Fprintf(inout.StdOut, "Hello, World!\n")
+			}
 			
 			return 0
 		},
@@ -72,11 +106,11 @@ var MainCommandRunner = func() *cli.CommandRunner {
 		"pvectl [global-flags] <command> [command-flags] [arguments...]",
 		&Options{},
 	)
-	
+
 	// Add subcommands
 	for _, cmd := range subCommands {
 		runner.AddSubCommand(cmd)
 	}
-	
+
 	return runner
 }()
