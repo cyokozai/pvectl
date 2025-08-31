@@ -104,7 +104,7 @@ func (cr *CommandRunner) Run(args []string, inout *InOut) int {
 
 			return 0 // Display help for global flags
 		}
-		
+
 		return cr.printSubCommandHelp(cmdArgs[0], inout) // Display help for a specific subcommand
 	}
 
@@ -117,7 +117,7 @@ func (cr *CommandRunner) Run(args []string, inout *InOut) int {
 
 	fmt.Fprintf(inout.StdErr, "error: unknown command %q\n", cmdName)
 	cr.printGlobalHelp(inout)
-	
+
 	return 1
 }
 
@@ -153,11 +153,11 @@ func (cr *CommandRunner) runSubCommand(cmd SubCommands, args []string, inout *In
 		if err := flagSet.Parse(args); err != nil {
 			if err == flag.ErrHelp {
 				cr.printSubCommandHelp(cmd.Name, inout)
-				
+
 				return 0
 			}
 			fmt.Fprintf(inout.StdErr, "Error parsing flags for %s: %v\n", cmd.Name, err)
-			
+
 			return 1
 		}
 
