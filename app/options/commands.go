@@ -3,7 +3,6 @@ package options
 import (
 	"fmt"
 	"time"
-
 	"github.com/cyokozai/pvectl/app/cli"
 )
 
