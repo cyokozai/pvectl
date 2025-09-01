@@ -1,0 +1,39 @@
+apiVersion: pve.io/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: terraform-test-vm
+  namespace: default
+  labels:
+    app: test-app
+spec:
+  targetNode: proxmox-server02
+  pool: pool0
+  clone: linux-cloudinit-template
+  agent: true
+  description: "A test for using terraform and cloudinit"
+  resources:
+    cpu:
+      cores: 2
+      sockets: 1
+      type: host
+    memory: 2048 # MB
+  disks:
+    - name: cloudinit-disk
+      storage: local-lvm
+      type: cloudinit
+    - name: virtio0-disk
+      storage: ceph-storage-pool
+      storageType: rbd
+      size: 32 # GB
+      cache: writeback
+      iothread: true
+      discard: true
+  networks:
+    - id: 0
+      model: virtio
+      bridge: vmbr0
+      tag: 256
+      ipconfig: "ip=192.168.10.20/24,gw=192.168.10.1"
+  bootOrder: virtio0
+  sshKeys: |
+    ssh-rsa 9182739187293817293817293871== user@pc

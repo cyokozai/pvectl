@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Config
+preferences: {}
+users:
+- name: "user@pam"
+  user:
+    password: "password"
+    token: "0123456789"
+    otp: "otpcode"
+nodes:
+- name: "production-pve"
+  node:
+    server: "https://pve.example.com:8006"
+    http_headers:
+      X-Custom-Header: "Production"
+- name: "development-pve"
+  node:
+    server: "https://dev-pve.example.com:8006"
+    http_headers:
+      X-Custom-Header: "Development"
+contexts:
+- name: "production"
+  context:
+    user: "user@pam"
+    node: "production-pve"
+- name: "development"
+  context:
+    user: "user@pam"
+    node: "development-pve"
+current-context: "production"
