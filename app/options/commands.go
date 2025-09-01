@@ -2,27 +2,18 @@ package options
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/cyokozai/pvectl/app/cli"
 )
 
 type HelpFlags struct {
-	Help bool `name:"help" description:"Show help"`
-}
-
-// FooFlags struct: flags for the foo command
-type FooFlags struct {
-	Verbose bool `name:"verbose" description:"Enable verbose output"`
-}
-
-// BarFlags struct: flags for the bar command
-type BarFlags struct {
-	Output string `name:"output" description:"Output format (json|yaml|text)"`
-	Quiet  bool   `name:"quiet" description:"Suppress output"`
+	Verbose bool   `name:"verbose" short:"v" description:"Show detailed help"`
+	Format  string `name:"format" short:"f" description:"Output format (text|json|yaml)"`
 }
 
 type HelloFlags struct {
-	Verbose bool `name:"verbose" description:"Enable verbose output"`
+	Verbose bool `name:"verbose" short:"v" description:"Enable verbose output"`
 }
 
 // subCommands variable: implementation of subcommands
@@ -31,7 +22,9 @@ var subCommands = []cli.SubCommands{
 		Name:        "help",
 		Description: "help command - show help",
 		Usage:       "pvectl help [command]",
-		Flags:       &HelpFlags{},
+		Flags: func() interface{} {
+			return &HelpFlags{}
+		},
 		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
 			return 0
 		},
@@ -39,28 +32,27 @@ var subCommands = []cli.SubCommands{
 	{
 		Name:        "hello",
 		Description: "hello command - display greeting message",
-		Usage:       "pvectl hello [NAME] [--verbose]",
-		Flags:       &HelloFlags{},
+		Usage:       "pvectl hello [flags...] [arguments...]",
+		Flags: func() interface{} {
+			return &HelloFlags{}
+		},
 		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
-			if flags != nil {
-				helloFlags := flags.(*HelloFlags)
-				if helloFlags.Verbose {
-					fmt.Fprintf(inout.StdOut, "Hello World command executed with verbose output\n")
-				} else {
-					fmt.Fprintf(inout.StdOut, "Hello World command executed\n")
-				}
-			} else {
-				fmt.Fprintf(inout.StdOut, "Hello World command executed\n")
-			}
-			
-			// If an argument is specified, display the greeting message
 			if len(args) > 0 {
 				name := args[0]
-				fmt.Fprintf(inout.StdOut, "Hello, %s!\n", name)
+				if flags != nil {
+					helloFlags := flags.(*HelloFlags)
+					if helloFlags.Verbose {
+						fmt.Fprintf(inout.StdOut, "Hello, %s! Today is %s\n", name, time.Now().Format("Monday"))
+					} else {
+						fmt.Fprintf(inout.StdOut, "Hello, %s!\n", name)
+					}
+				} else {
+					fmt.Fprintf(inout.StdOut, "Hello, %s!\n", name)
+				}
 			} else {
 				fmt.Fprintf(inout.StdOut, "Hello, World!\n")
 			}
-			
+
 			return 0
 		},
 	},
@@ -70,9 +62,8 @@ var subCommands = []cli.SubCommands{
 var MainCommandRunner = func() *cli.CommandRunner {
 	runner := cli.NewCommandRunner(
 		"pvectl",
-		"Proxmox VE instance management CLI tool",
-		"pvectl [global-flags] <command> [command-flags] [arguments...]",
-		&Options{},
+		"Proxmox VE instance management CLI tool.",
+		"pvectl <command> [flags...] [arguments...]",
 	)
 
 	// Add subcommands

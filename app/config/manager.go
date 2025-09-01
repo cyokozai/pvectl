@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -18,7 +19,7 @@ func (cm *ConfigManager) LoadConfig() error {
 
 			return cm.SaveConfig()
 		}
-		
+
 		return fmt.Errorf("failed to read config file: %w", err)
 	}
 
@@ -144,6 +145,6 @@ func GetDefaultConfigPath() string {
 	if err != nil {
 		return ".pvectl/config"
 	}
-	
+
 	return filepath.Join(homeDir, ".pvectl", "config")
 }
