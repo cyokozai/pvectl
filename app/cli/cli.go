@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"reflect"
 	"strings"
@@ -44,7 +43,7 @@ type SubCommands struct {
 	Description string
 	Usage       string
 	Run         func(args []string, flags interface{}, inout *InOut) int
-	Flags       interface{}
+	Flags       func() interface{}
 }
 
 // CommandRunner: Manage main command execution
@@ -53,16 +52,14 @@ type CommandRunner struct {
 	Description string
 	Usage       string
 	SubCommands []SubCommands
-	GlobalFlags interface{}
 }
 
 // NewCommandRunner: Create a new command runner
-func NewCommandRunner(name, description, usage string, globalFlags interface{}) *CommandRunner {
+func NewCommandRunner(name, description, usage string) *CommandRunner {
 	return &CommandRunner{
 		Name:        name,
 		Description: description,
 		Usage:       usage,
-		GlobalFlags: globalFlags,
 	}
 }
 
@@ -73,32 +70,11 @@ func (cr *CommandRunner) AddSubCommand(cmd SubCommands) {
 
 // Run: Execute command
 func (cr *CommandRunner) Run(args []string, inout *InOut) int {
-	// Parse global flags
-	if cr.GlobalFlags != nil {
-		if err := FlagParser(cr.Name, args, cr.GlobalFlags); err != nil {
-			if err == flag.ErrHelp {
-				cr.printGlobalHelp(inout)
-
-				return 0 // Display help for global flags
-			}
-			fmt.Fprintf(inout.StdErr, "Error parsing global flags: %v\n", err)
-
-			return 1 // Return error if global flags are not parsed
-		}
-
-		helpField := reflect.ValueOf(cr.GlobalFlags).Elem().FieldByName("Help")
-		if helpField.Bool() && helpField.IsValid() {
-			cr.printGlobalHelp(inout)
-			
-			return 0 // Display help for global flags
-		}
-	}
-
 	// If no subcommands are provided, display help
 	if len(args) == 0 {
-		cr.printGlobalHelp(inout)
+		cr.PrintGlobalHelp(inout)
 
-		return 1 // Return error if no subcommands are provided
+		return 0 // Return error if no subcommands are provided
 	}
 
 	cmdName := args[0]
@@ -107,12 +83,12 @@ func (cr *CommandRunner) Run(args []string, inout *InOut) int {
 	// Process help command
 	if cmdName == "help" {
 		if len(cmdArgs) == 0 {
-			cr.printGlobalHelp(inout)
+			cr.PrintGlobalHelp(inout)
 
 			return 0 // Display help for global flags
 		}
 
-		return cr.printSubCommandHelp(cmdArgs[0], inout) // Display help for a specific subcommand
+		return cr.PrintSubCommandHelp(cmdArgs[0], inout) // Display help for a specific subcommand
 	}
 
 	// Search for and execute subcommand
@@ -123,107 +99,90 @@ func (cr *CommandRunner) Run(args []string, inout *InOut) int {
 	}
 
 	fmt.Fprintf(inout.StdErr, "error: unknown command %q\n", cmdName)
-	cr.printGlobalHelp(inout)
+	cr.PrintGlobalHelp(inout)
 
 	return 1
 }
 
 // runSubCommand: Execute subcommand
 func (cr *CommandRunner) runSubCommand(cmd SubCommands, args []string, inout *InOut) int {
-	// Parse subcommand-specific flags
-	if cmd.Flags != nil {
-		flagSet := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
-		flagSet.SetOutput(inout.StdErr)
-		flagSet.Usage = func() {
-			cr.printSubCommandHelp(cmd.Name, inout)
-		}
+    if cmd.Flags != nil {
+        flags := cmd.Flags()
+        flagSet := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
+        flagSet.SetOutput(inout.StdErr)
+        flagSet.Usage = func() {
+            cr.PrintSubCommandHelp(cmd.Name, inout)
+        }
 
-		// Set flags
-		flags := FlagAnalyzer(cmd.Flags)
-		flagsValue := reflect.ValueOf(cmd.Flags).Elem()
+        flagsValue := FlagAnalyzer(flags)
+        flagsStruct := reflect.ValueOf(flags).Elem()
 
-		for _, f := range flags {
-			field := flagsValue.FieldByName(f.FlagName)
-			if !field.IsValid() {
-				continue
-			}
-			switch f.Type {
-			case "string":
-				flagSet.StringVar(field.Addr().Interface().(*string), f.Name, field.String(), f.Description)
-			case "bool":
-				flagSet.BoolVar(field.Addr().Interface().(*bool), f.Name, field.Bool(), f.Description)
-			case "int":
-				flagSet.IntVar(field.Addr().Interface().(*int), f.Name, int(field.Int()), f.Description)
-			}
-		}
+        for _, f := range flagsValue {
+            field := flagsStruct.FieldByName(f.FlagName)
+            if !field.IsValid() {
+                continue
+            }
+            switch f.Type {
+            case "string":
+                flagSet.StringVar(field.Addr().Interface().(*string), f.Name, field.String(), f.Description)
+            case "bool":
+                flagSet.BoolVar(field.Addr().Interface().(*bool), f.Name, field.Bool(), f.Description)
+                if f.Short != "" {
+                    flagSet.BoolVar(field.Addr().Interface().(*bool), f.Short, field.Bool(), f.Description)
+                }
+            case "int":
+                flagSet.IntVar(field.Addr().Interface().(*int), f.Name, int(field.Int()), f.Description)
+            }
+        }
 
-		if err := flagSet.Parse(args); err != nil {
-			if err == flag.ErrHelp {
-				cr.printSubCommandHelp(cmd.Name, inout)
+        if err := flagSet.Parse(args); err != nil {
+            if err == flag.ErrHelp {
+                cr.PrintSubCommandHelp(cmd.Name, inout)
+                return 0
+            }
+            fmt.Fprintf(inout.StdErr, "Error parsing flags for %s: %v\n", cmd.Name, err)
+            return 1
+        }
 
-				return 0
-			}
-			fmt.Fprintf(inout.StdErr, "Error parsing flags for %s: %v\n", cmd.Name, err)
+        args = flagSet.Args()
+        return cmd.Run(args, flags, inout)
+    }
 
-			return 1
-		}
-
-		// Get remaining arguments after flag parsing
-		args = flagSet.Args()
-
-		return cmd.Run(args, cmd.Flags, inout) // Call Run function with flags
-	}
-
-	return cmd.Run(args, nil, inout) // If no flags are provided, pass nil
+    return cmd.Run(args, nil, inout)
 }
 
-// printGlobalHelp: Display global help
-func (cr *CommandRunner) printGlobalHelp(inout *InOut) {
+// PrintGlobalHelp: Display global help
+func (cr *CommandRunner) PrintGlobalHelp(inout *InOut) {
 	fmt.Fprintf(inout.StdOut, "%s\n\n", cr.Description)
 	fmt.Fprintf(inout.StdOut, "Usage:\n  %s\n\n", cr.Usage)
 	fmt.Fprintf(inout.StdOut, "Available Commands:\n")
-
 	for _, cmd := range cr.SubCommands {
 		fmt.Fprintf(inout.StdOut, "  %-15s %s\n", cmd.Name, cmd.Description)
-	}
-
-	if cr.GlobalFlags != nil {
-		fmt.Fprintf(inout.StdOut, "\nGlobal Flags:\n")
-		flags := FlagAnalyzer(cr.GlobalFlags)
-		for _, f := range flags {
-			if f.Short != "" {
-				fmt.Fprintf(inout.StdOut, "  -%-1s, --%-15s %s\n", f.Short, f.Name, f.Description)
-			} else {
-				fmt.Fprintf(inout.StdOut, "  --%-15s %s\n", f.Name, f.Description)
-			}
-		}
 	}
 
 	fmt.Fprintf(inout.StdOut, "\nUse \"%s help <command>\" for more information about a command.\n", cr.Name)
 }
 
-// printSubCommandHelp: Display subcommand help
-func (cr *CommandRunner) printSubCommandHelp(cmdName string, inout *InOut) int {
-	for _, cmd := range cr.SubCommands {
-		if cmd.Name == cmdName {
-			fmt.Fprintf(inout.StdOut, "%s\n\n", cmd.Description)
-			fmt.Fprintf(inout.StdOut, "Usage:\n  %s\n\n", cmd.Usage)
-
-			if cmd.Flags != nil {
-				fmt.Fprintf(inout.StdOut, "Flags:\n")
-				flags := FlagAnalyzer(cmd.Flags)
-				for _, f := range flags {
-					fmt.Fprintf(inout.StdOut, "  --%-15s %s\n", f.Name, f.Description)
-				}
-			}
-
-			return 0
-		}
-	}
-
-	fmt.Fprintf(inout.StdErr, "error: unknown command %q\n", cmdName)
-
-	return 1
+// PrintSubCommandHelp: Display subcommand help
+func (cr *CommandRunner) PrintSubCommandHelp(cmdName string, inout *InOut) int {
+    for _, cmd := range cr.SubCommands {
+        if cmd.Name == cmdName {
+            fmt.Fprintf(inout.StdOut, "%s\n\n", cmd.Description)
+            fmt.Fprintf(inout.StdOut, "Usage:\n  %s\n\n", cmd.Usage)
+            if cmd.Flags != nil {
+                fmt.Fprintf(inout.StdOut, "Flags:\n")
+				
+                flags := cmd.Flags()
+                flagsValue := FlagAnalyzer(flags)
+                for _, f := range flagsValue {
+                    fmt.Fprintf(inout.StdOut, "  --%-10s -%s\t%s\n", f.Name, f.Short, f.Description)
+                }
+            }
+            return 0
+        }
+    }
+    fmt.Fprintf(inout.StdErr, "error: unknown command %q\n", cmdName)
+    return 1
 }
 
 // Flag struct: holds information about a command-line flag
@@ -247,6 +206,7 @@ func FlagAnalyzer(options any) []Flag {
 		f := Flag{
 			FlagName:    field.Name,
 			Name:        field.Tag.Get("name"),
+			Short:       field.Tag.Get("short"),
 			Description: field.Tag.Get("description"),
 		}
 		switch field.Type.Kind() {
@@ -257,8 +217,9 @@ func FlagAnalyzer(options any) []Flag {
 		case reflect.Int:
 			f.Type = "int"
 		default:
-			log.Fatal("unhandled flag type: ", field.Type.Kind())
-			panic("unhandled flag type: " + field.Type.Kind().String())
+			fmt.Println("unhandled flag type: ", field.Type.Kind().String())
+
+			return nil
 		}
 
 		flags = append(flags, f)

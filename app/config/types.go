@@ -74,10 +74,9 @@ type ConfigManager struct {
 
 // NamedExtension type: holds additional information. This is useful for extenders so that reads and writes don't clobber unknown fields
 type NamedExtension struct {
-	Name string `yaml:"name"`
+	Name      string         `yaml:"name"`
 	Extension map[string]any `yaml:"extension,omitempty"`
 }
-
 
 // NewConfigManager function: creates a new configuration manager
 func NewConfigManager(configPath string) *ConfigManager {
