@@ -107,7 +107,7 @@ func (cr *CommandRunner) Run(args []string, inout *InOut) int {
 // runSubCommand: Execute subcommand
 func (cr *CommandRunner) runSubCommand(cmd SubCommands, args []string, inout *InOut) int {
     if cmd.Flags != nil {
-        flags := cmd.Flags() // ← ここで新しいインスタンスを生成
+        flags := cmd.Flags()
         flagSet := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
         flagSet.SetOutput(inout.StdErr)
         flagSet.Usage = func() {
