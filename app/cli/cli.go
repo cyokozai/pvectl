@@ -25,7 +25,7 @@ func NewInOut() *InOut {
 		parts := strings.SplitN(e, "=", 2)
 		env[parts[0]] = parts[1]
 	}
-
+	
 	return &InOut{
 		StdIn:  os.Stdin,  // Standard input
 		StdOut: os.Stdout, // Standard output
