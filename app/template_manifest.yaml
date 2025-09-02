@@ -1,7 +1,7 @@
 apiVersion: pve.io/v1alpha1
 kind: VirtualMachine
 metadata:
-  name: terraform-test-vm
+  name: test-vm
   namespace: default
   labels:
     app: test-app
@@ -10,7 +10,7 @@ spec:
   pool: pool0
   clone: linux-cloudinit-template
   agent: true
-  description: "A test for using terraform and cloudinit"
+  description: "A test for using pvectl and cloudinit"
   resources:
     cpu:
       cores: 2

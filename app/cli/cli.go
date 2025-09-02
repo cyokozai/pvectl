@@ -199,7 +199,7 @@ func FlagAnalyzer(options any) []Flag {
 	flags := make([]Flag, 0)
 	typeOf := reflect.TypeOf(options).Elem()
 	m := typeOf.NumField()
-
+	
 	for i := 0; i < m; i++ {
 		field := typeOf.Field(i)
 

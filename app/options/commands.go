@@ -10,7 +10,7 @@ import (
 )
 
 type ConfigFlag struct {
-
+	Output string `name:"output" short:"o" description:"Output format (json|yaml|wide)"`
 }
 
 type HelpFlags struct {
@@ -41,7 +41,7 @@ var subCommands = []cli.SubCommands{
 			if err != nil {
 				fmt.Printf("Error: decoding YAML: %v\n", err)
 			}
-
+			
 			for _, cmd := range config.ConfigSubCommands {
 				fmt.Printf("  %s\t- %s\n", cmd.Name, cmd.Description)
 			}

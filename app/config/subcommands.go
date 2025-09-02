@@ -8,7 +8,7 @@ import (
 var ConfigSubCommands = []cli.SubCommands{
 	{
 		Name:        "get-context",
-		Description: "Get a specific context",
+		Description: "Get a specific context",                                                                                                                                                                                                                                                                                                                                                                   _                                                _                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              ______________________________________________________________________________________________________________
 		Usage:       "pvectl config get-context [context-name] [flags...]",
 		Flags: func() interface{} {
 			return 0
@@ -19,7 +19,7 @@ var ConfigSubCommands = []cli.SubCommands{
 
 				return 1
 			}
-
+			
 			contextName := args[0]
 			context 	:= GetContext(contextName)
 			if context == nil {
@@ -28,7 +28,7 @@ var ConfigSubCommands = []cli.SubCommands{
 				return 1
 			}
 
-			
+			cfg := cli.Config 
 			fmt.Printf("CURRENT\tNAME\tNODE\tUSER\n")
 			for _, context := range cfg.Contexts {
 				prefix := " "
