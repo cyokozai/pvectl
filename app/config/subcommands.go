@@ -7,11 +7,11 @@ import (
 
 var ConfigSubCommands = []cli.SubCommands{
 	{
-		Name:        "get-context",
-		Description: "Get a specific context",                                                                                                                                                                                                                                                                                                                                                                   _                                                _                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              ______________________________________________________________________________________________________________
-		Usage:       "pvectl config get-context [context-name] [flags...]",
+		Name:        "get-contexts",
+		Description: "Get the specific contexts",
+		Usage:       "pvectl config get-contexts [context-name] [flags...]",
 		Flags: func() interface{} {
-			return 0
+			return &cli.ConfigFlag{}
 		},
 		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
 			if len(args) < 1 {
@@ -28,7 +28,8 @@ var ConfigSubCommands = []cli.SubCommands{
 				return 1
 			}
 
-			cfg := cli.Config 
+			var cfg Config
+
 			fmt.Printf("CURRENT\tNAME\tNODE\tUSER\n")
 			for _, context := range cfg.Contexts {
 				prefix := " "
@@ -52,7 +53,7 @@ var ConfigSubCommands = []cli.SubCommands{
 func GetContext(name string) *Context {
 	var cfg Config
 	if name == "" {
-		return cfg.Contexts
+		return &cfg.Contexts[0]
 	}
 	for _, context := range cfg.Contexts {
 		if context.Name == name {

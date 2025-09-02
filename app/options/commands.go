@@ -9,18 +9,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type ConfigFlag struct {
-	Output string `name:"output" short:"o" description:"Output format (json|yaml|wide)"`
-}
-
-type HelpFlags struct {
-	// No flags
-}
-
-type HelloFlags struct {
-	Verbose bool `name:"verbose" short:"v" description:"Enable verbose output"`
-}
-
 // subCommands variable: implementation of subcommands
 var subCommands = []cli.SubCommands{
 	{
@@ -28,7 +16,7 @@ var subCommands = []cli.SubCommands{
 		Description: "config command - show help",
 		Usage:       "pvectl config [subcommand] [flags...] [arguments...]",
 		Flags: func() interface{} {
-			return &HelpFlags{}
+			return &cli.HelpFlags{}
 		},
 		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
 			yamlFile, err := os.ReadFile("/root/.pvectl/config")
@@ -41,7 +29,7 @@ var subCommands = []cli.SubCommands{
 			if err != nil {
 				fmt.Printf("Error: decoding YAML: %v\n", err)
 			}
-			
+
 			for _, cmd := range config.ConfigSubCommands {
 				fmt.Printf("  %s\t- %s\n", cmd.Name, cmd.Description)
 			}
@@ -54,7 +42,7 @@ var subCommands = []cli.SubCommands{
 		Description: "help command - show help",
 		Usage:       "pvectl help [command]",
 		Flags: func() interface{} {
-			return &HelpFlags{}
+			return &cli.HelpFlags{}
 		},
 		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
 			return 0
@@ -65,13 +53,13 @@ var subCommands = []cli.SubCommands{
 		Description: "hello command - display greeting message",
 		Usage:       "pvectl hello [flags...] [arguments...]",
 		Flags: func() interface{} {
-			return &HelloFlags{}
+			return &cli.HelloFlags{}
 		},
 		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
 			if len(args) > 0 {
 				name := args[0]
 				if flags != nil {
-					helloFlags := flags.(*HelloFlags)
+					helloFlags := flags.(*cli.HelloFlags)
 					if helloFlags.Verbose {
 						fmt.Fprintf(inout.StdOut, "Hello, %s! Today is %s\n", name, time.Now().Format("Monday"))
 					} else {
