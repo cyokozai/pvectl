@@ -18,9 +18,7 @@ var subCommands = []cli.SubCommands{
 			return &cli.ConfigFlag{}
 		},
 		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
-			config.
-
-			return 0
+			return config.MainCommandRunner.Run(args, inout)
 		},
 	},
 	{
