@@ -2,11 +2,10 @@ package options
 
 import (
 	"fmt"
-	"os"
 	"time"
+
 	"github.com/cyokozai/pvectl/app/cli"
 	"github.com/cyokozai/pvectl/app/config"
-	"gopkg.in/yaml.v3"
 )
 
 // subCommands variable: implementation of subcommands
@@ -16,23 +15,10 @@ var subCommands = []cli.SubCommands{
 		Description: "config command - show help",
 		Usage:       "pvectl config [subcommand] [flags...] [arguments...]",
 		Flags: func() interface{} {
-			return &cli.HelpFlags{}
+			return &cli.ConfigFlag{}
 		},
 		Run: func(args []string, flags interface{}, inout *cli.InOut) int {
-			yamlFile, err := os.ReadFile("/root/.pvectl/config")
-			if err != nil {
-				fmt.Printf(": %v\n", err)
-			}
-
-			var cfg config.Config
-			err = yaml.Unmarshal(yamlFile, &cfg)
-			if err != nil {
-				fmt.Printf("Error: decoding YAML: %v\n", err)
-			}
-
-			for _, cmd := range config.ConfigSubCommands {
-				fmt.Printf("  %s\t- %s\n", cmd.Name, cmd.Description)
-			}
+			config.
 
 			return 0
 		},
