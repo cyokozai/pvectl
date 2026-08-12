@@ -1,9 +1,29 @@
+# Secrets
 .env
+.env.*
+*credentials*
+*secret*
+*token*
+*.pem
+*.key
+
+# Docker / meta
 Dockerfile
 docker-compose.y*ml
 compose.y*ml
+.devcontainer/
+.github/
+.git/
 README.md
 LICENSE
+docs/
+images/
+
+# Build artifacts
+/pvectl
+/main
+*.out
+*.test
 
 .DS_Store*
 *.DS_Store

@@ -1,21 +1,39 @@
-FROM golang:1.24-alpine
+# ===== Development =====
+FROM golang:1.26-alpine AS dev
 
-SHELL [ "ash", "-c" ]
-
-ENV PATH=$PATH:/go/bin
-ENV GOCACHE=/tmp/go-cache
-ENV GOMODCACHE=/tmp/go-mod-cache
-
-COPY ./app /home/app
-
-WORKDIR /home
-
-RUN apk add --no-cache git && \
-    go mod init github.com/cyokozai/pvectl && \
-    go get gopkg.in/yaml.v3@latest && \
-    go get github.com/google/go-cmp/cmp@latest && \
-    go get github.com/Telmate/proxmox-api-go@latest && \
+RUN apk add --no-cache git curl bash build-base && \
     go install golang.org/x/tools/cmd/goimports@latest && \
-    go install golang.org/x/lint/golint@latest
+    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b /go/bin v2.12.2
 
-CMD [ "tail", "-f", "/dev/null" ]
+WORKDIR /workspace
+
+CMD ["sleep", "infinity"]
+
+# ===== Build =====
+FROM golang:1.26-alpine AS build
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+
+ARG VERSION=dev
+ARG GIT_COMMIT=none
+ARG BUILD_DATE=unknown
+
+RUN CGO_ENABLED=0 go build \
+    -ldflags "-s -w \
+      -X github.com/cyokozai/pvectl/internal/cmd.Version=${VERSION} \
+      -X github.com/cyokozai/pvectl/internal/cmd.GitCommit=${GIT_COMMIT} \
+      -X github.com/cyokozai/pvectl/internal/cmd.BuildDate=${BUILD_DATE}" \
+    -o /out/pvectl ./cmd/pvectl
+
+# ===== Runtime =====
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=build /out/pvectl /usr/local/bin/pvectl
+
+ENTRYPOINT ["pvectl"]

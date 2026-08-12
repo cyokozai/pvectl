@@ -1,0 +1,3 @@
+NAME         STATUS    NODE
+web-server   running   pve1
+db           stopped   pve2

@@ -1,0 +1,20 @@
+# Minimal direct-create VirtualMachine.
+apiVersion: pve.io/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: web-server
+  labels:
+    app: nginx
+spec:
+  targetNode: pve-node1
+  resources:
+    cpu:
+      cores: 2
+    memory: 2048
+  disks:
+    - name: scsi0
+      size: 32G
+      storage: local-lvm
+  networks:
+    - name: net0
+      bridge: vmbr0
