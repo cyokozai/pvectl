@@ -18,7 +18,7 @@ pvectl の開発環境構築から動作確認、ローカルへのバイナリ�
 git clone https://github.com/cyokozai/pvectl.git
 cd pvectl
 
-# 開発コンテナを起動（golang:1.26-alpine + goimports + golangci-lint v2）
+# 開発コンテナを起動（golang:1.26.8-alpine + goimports + golangci-lint v2.12.2）
 make dev-up
 ```
 

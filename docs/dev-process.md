@@ -32,13 +32,18 @@
 ローカルを汚さない。ビルド・テスト・lint はすべて dev コンテナ内で実行する。
 
 ```bash
-make dev-up      # golang:1.26-alpine + golangci-lint v2.12.2 のコンテナを起動
+make dev-up      # golang:1.26.8-alpine + golangci-lint v2.12.2 のコンテナを起動
 make check       # vet + lint + race テスト（コンテナ内）
 make build       # ldflags 付きビルド
 ```
 
 - ソースはバインドマウント（ホストのエディタで編集 → 即反映）、go mod/build キャッシュは名前付きボリューム
 - VS Code 利用時は `.devcontainer/devcontainer.json` で同じコンテナにアタッチ可能
+- **Go のバージョンは 2 か所で別の役割を持つ。** Dockerfile はパッチ版まで固定した
+  `golang:1.26.8-alpine` を使い、標準ライブラリの脆弱性修正を確実に取り込む。一方
+  `go.mod` の `go` ディレクティブは**最小要求バージョン**なので固定イメージに追従させない
+  （上げると `go install` で導入するエンドユーザーに不要な制約を課す）。両者の数字が
+  揃っていないのは意図した設計である
 - シークレット（`.env` 等）はコンテナにマウントしない・読まない
 
 ## 3. ブランチ / コミット
