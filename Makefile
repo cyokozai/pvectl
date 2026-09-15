@@ -28,7 +28,7 @@ endif
 # make の最大の弱点なので、既定動作をその解消に充てる。
 .DEFAULT_GOAL := help
 
-.PHONY: help build test race lint fmt vet check clean dev-up dev-down
+.PHONY: help build test race coverage lint fmt vet check clean dev-up dev-down
 
 # ターゲット名はハードコードせず、`## 説明` が付いた行を走査して一覧にする。
 # 新しいターゲットは `## 説明` を書けば自動で載る（書き忘れると載らない）。
@@ -56,6 +56,12 @@ test: ## テストを実行する
 
 race: ## データ競合検出付きでテストを実行する
 	$(RUN) env CGO_ENABLED=1 go test -race ./...
+
+# CI (.github/workflows/ci.yaml) の test ジョブと同じ計測を手元で再現する。
+# 数字が食い違うと CI のカバレッジ低下を手元で追えないため、オプションを揃える。
+coverage: ## カバレッジを取得して合計を表示する (coverage.out)
+	$(RUN) env CGO_ENABLED=1 go test -race -coverprofile=coverage.out ./...
+	$(RUN) go tool cover -func=coverage.out | tail -1
 
 lint: ## golangci-lint を実行する
 	$(RUN) golangci-lint run ./...
