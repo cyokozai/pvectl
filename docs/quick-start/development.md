@@ -1,7 +1,10 @@
-# USAGE — セットアップと動作検証ガイド
+# 開発とインストール
 
 pvectl の開発環境構築から動作確認、ローカルへのバイナリインストールまでの手順。
 **ビルド・テストはすべて Docker コンテナ内で実行する**（ローカル環境を汚さない）。
+
+使い方だけを知りたい場合は [quick-start](README.md) を読むこと。
+コンテナ構成・テスト戦略・CI の設計意図は [docs/dev-process.md](../dev-process.md) にある。
 
 ## 前提
 
@@ -26,8 +29,8 @@ docker compose ps                       # pvectl-dev が Up
 docker compose exec dev go version      # go1.26.x
 ```
 
-ソースはバインドマウントされるため、ホストで編集 → コンテナに即反映される。
-go mod / build キャッシュは名前付きボリュームに置かれ、ホストには何も残らない。
+ソースはバインドマウントされるため、ホストで編集 → コンテナに即反映される
+（構成の詳細は [dev-process.md §2](../dev-process.md)）。
 
 ## 2. コンテナ内での動作確認
 
@@ -38,7 +41,7 @@ make check    # go vet + golangci-lint + go test -race ./...
 ```
 
 テストは httptest 製のフェイク Proxmox VE API（`test/pvefake`）に対して走るため、
-実クラスタなしで apply → diff → update → delete の e2e まで検証される。
+実クラスタは不要。層ごとのテスト道具は [dev-process.md §1](../dev-process.md) にまとめてある。
 
 ### 2-2. バイナリのスモークテスト
 
@@ -66,7 +69,8 @@ docker compose exec dev ./pvectl apply -f examples/multi.yaml -f examples/vm-clo
 
 ### 2-4. 実クラスタへの接続確認（任意）
 
-`~/.pvectl/config` を用意し（形式は [examples/config.yaml](examples/config.yaml)）、
+`~/.pvectl/config` を用意し（形式は [examples/config.yaml](../../examples/config.yaml)、
+書き方は [quick-start §2](README.md)）、
 コンテナにマウントして読み取り系から確認する:
 
 ```bash
