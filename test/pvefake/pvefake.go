@@ -65,6 +65,12 @@ type ExecScript struct {
 	// NeverExits makes exec-status always report the command as running,
 	// which is what a client-side timeout has to cope with.
 	NeverExits bool
+	// StatusHTTPError, when non-empty, makes exec-status answer with a
+	// plain-text HTTP 500 carrying this message instead of a JSON body.
+	// The distinction matters: proxmox-api-go treats a JSON error body
+	// as final but a non-JSON one as retryable, and the retryable path
+	// is the one that sleeps between attempts.
+	StatusHTTPError string
 }
 
 // New starts a fake server. Call Close when done.
@@ -566,6 +572,8 @@ func (s *Server) handleAgentExecStatus(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	switch {
+	case script.StatusHTTPError != "":
+		http.Error(w, script.StatusHTTPError, http.StatusInternalServerError)
 	case message != "":
 		writeAPIError(w, message)
 	case !known:

@@ -59,6 +59,14 @@ func TestExecWaitPollsUntilExit(t *testing.T) {
 	}
 }
 
+// execTimeoutSlack is the upper bound the timeout tests hold ExecWait
+// to. The bound they ask for is 150-200ms and a fixed ExecWait returns
+// within a few milliseconds of it; 2s leaves a loaded CI runner room to
+// be slow without letting a regression through, because the failure
+// this guards against — the SDK sleeping 1+2+3 seconds between retries
+// without looking at the context — costs six seconds, not two.
+const execTimeoutSlack = 2 * time.Second
+
 // TestExecWaitTimeout is the case the guest agent cannot resolve on its
 // own: the command never finishes, so the client has to give up.
 func TestExecWaitTimeout(t *testing.T) {
@@ -77,8 +85,37 @@ func TestExecWaitTimeout(t *testing.T) {
 	if !strings.Contains(err.Error(), "--exec-timeout") {
 		t.Errorf("error %q does not point at --exec-timeout", err)
 	}
-	if elapsed > 3*time.Second {
+	if elapsed > execTimeoutSlack {
 		t.Errorf("ExecWait() waited %s, want it to give up near the 150ms bound", elapsed)
+	}
+}
+
+// TestExecWaitTimeoutWhileStatusFails checks the bound on the path that
+// broke it. exec-status answers with a plain-text HTTP 500, which
+// proxmox-api-go classifies as retryable: GetJsonRetryable then sleeps
+// 1+2+3 seconds across its three attempts and never consults the
+// context, so a 200ms --exec-timeout used to take six seconds. The
+// polling read must therefore not retry, and must be abandoned the
+// moment the deadline passes.
+func TestExecWaitTimeoutWhileStatusFails(t *testing.T) {
+	s := newTestServer(t)
+	s.SetExec(pvefake.ExecScript{NeverExits: true, StatusHTTPError: "communication failure"})
+	c := newTestClient(t, s)
+
+	start := time.Now()
+	_, err := ExecWait(context.Background(), c, testRef, []string{"tail", "-f", "/dev/null"},
+		ExecOptions{Timeout: 200 * time.Millisecond, PollInterval: 10 * time.Millisecond})
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, ErrExecTimeout) {
+		t.Fatalf("ExecWait() error = %v, want ErrExecTimeout", err)
+	}
+	if elapsed > execTimeoutSlack {
+		t.Errorf("ExecWait() waited %s past a 200ms bound; the SDK retry sleeps are back in the path", elapsed)
+	}
+	// The read must have been attempted, not skipped.
+	if !s.SawRequest("GET", "/api2/json/nodes/pve1/qemu/100/agent/exec-status") {
+		t.Error("exec-status was never polled")
 	}
 }
 
