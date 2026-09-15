@@ -23,6 +23,41 @@ func minimalSpec() *Spec {
 	}
 }
 
+func TestValidateRunStrategy(t *testing.T) {
+	for _, s := range []RunStrategy{"", RunStrategyHalted, RunStrategyAlways, RunStrategyManual} {
+		spec := minimalSpec()
+		spec.RunStrategy = s
+		if msg := validateErr(t, "x", spec); msg != "" {
+			t.Errorf("runStrategy %q rejected: %v", s, msg)
+		}
+	}
+	for _, s := range []RunStrategy{"always", "Running", "RunOnce", "true"} {
+		spec := minimalSpec()
+		spec.RunStrategy = s
+		msg := validateErr(t, "x", spec)
+		if !strings.Contains(msg, "spec.runStrategy") || !strings.Contains(msg, "Halted / Always / Manual") {
+			t.Errorf("runStrategy %q = %v, want the accepted values listed", s, msg)
+		}
+	}
+}
+
+func TestValidatePasswordFrom(t *testing.T) {
+	for _, ref := range []string{"env:PVE_VM_PASSWORD", "file:/run/secrets/vmpw"} {
+		spec := minimalSpec()
+		spec.CloudInit = &CloudInit{Storage: "local-lvm", PasswordFrom: ref}
+		if msg := validateErr(t, "x", spec); msg != "" {
+			t.Errorf("passwordFrom %q rejected: %v", ref, msg)
+		}
+	}
+	for _, ref := range []string{"hunter2", "env:", "vault:kv/vmpw"} {
+		spec := minimalSpec()
+		spec.CloudInit = &CloudInit{Storage: "local-lvm", PasswordFrom: ref}
+		if msg := validateErr(t, "x", spec); !strings.Contains(msg, "spec.cloudInit.passwordFrom") {
+			t.Errorf("passwordFrom %q = %v, want a reference syntax error", ref, msg)
+		}
+	}
+}
+
 func TestValidateRaw(t *testing.T) {
 	t.Run("unmodeled keys pass through", func(t *testing.T) {
 		spec := minimalSpec()
@@ -72,6 +107,15 @@ func TestValidateRaw(t *testing.T) {
 		msg := validateErr(t, "x", spec)
 		if !strings.Contains(msg, "spec.raw."+cloudInitSlot) {
 			t.Errorf("validateSpec() = %v, want %s conflict", msg, cloudInitSlot)
+		}
+	})
+
+	t.Run("cipassword conflicts even before the reference is resolved", func(t *testing.T) {
+		spec := minimalSpec()
+		spec.CloudInit = &CloudInit{Storage: "local-lvm", PasswordFrom: "env:PVE_VM_PASSWORD"}
+		spec.Raw = map[string]string{"cipassword": "hunter2"}
+		if msg := validateErr(t, "x", spec); !strings.Contains(msg, "spec.raw.cipassword") {
+			t.Errorf("validateSpec() = %v, want cipassword conflict", msg)
 		}
 	})
 

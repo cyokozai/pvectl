@@ -25,11 +25,13 @@ func fullSpec() *Spec {
 			{Name: "net0", Bridge: "vmbr0", Model: "virtio", Tag: 100},
 		},
 		CloudInit: &CloudInit{
-			User:       "admin",
-			Password:   "s3cret",
-			SSHKeys:    []string{"ssh-ed25519 AAAA test@example"},
-			IPConfig:   "ip=10.0.0.5/24,gw=10.0.0.1",
-			Nameserver: "1.1.1.1",
+			User: "admin",
+			// The converters see the resolved value, never the reference.
+			PasswordFrom:     "env:PVECTL_TEST_CI_PASSWORD",
+			resolvedPassword: "s3cret",
+			SSHKeys:          []string{"ssh-ed25519 AAAA test@example"},
+			IPConfig:         "ip=10.0.0.5/24,gw=10.0.0.1",
+			Nameserver:       "1.1.1.1",
 		},
 		RunStrategy: RunStrategyAlways,
 		Tags:        []string{"web", "prod"},

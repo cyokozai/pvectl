@@ -101,15 +101,23 @@ type Network struct {
 // CloudInit configures the cloud-init drive and its settings.
 type CloudInit struct {
 	User string `yaml:"user,omitempty" json:"user,omitempty"`
-	// Password is write-only: the API masks it, so it is set on create
-	// but never diffed or updated by apply.
-	Password string   `yaml:"password,omitempty" json:"password,omitempty"`
-	SSHKeys  []string `yaml:"sshKeys,omitempty" json:"sshKeys,omitempty"`
+	// PasswordFrom points at the password instead of carrying it:
+	// "env:VARIABLE" or "file:/path/to/file". It is resolved when apply
+	// runs, so no plaintext password ever enters the manifest. The value
+	// is write-only — the API masks cipassword, so it is set on create
+	// but never diffed or updated.
+	PasswordFrom string   `yaml:"passwordFrom,omitempty" json:"passwordFrom,omitempty"`
+	SSHKeys      []string `yaml:"sshKeys,omitempty" json:"sshKeys,omitempty"`
 	// IPConfig like "ip=dhcp" or "ip=10.0.0.5/24,gw=10.0.0.1".
 	IPConfig   string `yaml:"ipConfig,omitempty" json:"ipConfig,omitempty"`
 	Nameserver string `yaml:"nameserver,omitempty" json:"nameserver,omitempty"`
 	// Storage for the cloud-init drive; defaults to the first disk's storage.
 	Storage string `yaml:"storage,omitempty" json:"storage,omitempty"`
+
+	// resolvedPassword holds what PasswordFrom pointed at, filled in by
+	// apply. Unexported so it can never be read from or written to a
+	// manifest.
+	resolvedPassword string
 }
 
 // Status is the live state reported under a VM object.

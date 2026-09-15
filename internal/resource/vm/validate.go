@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/cyokozai/pvectl/internal/secretref"
 )
 
 // validateSpec checks a decoded manifest before any API call. All
@@ -56,8 +58,17 @@ func validateSpec(name string, spec *Spec) error {
 		}
 	}
 
-	if spec.CloudInit != nil && spec.Clone == "" && spec.CloudInit.Storage == "" && len(spec.Disks) == 0 {
-		errs = append(errs, "spec.cloudInit needs spec.cloudInit.storage (or at least one disk) for the cloud-init drive")
+	if ci := spec.CloudInit; ci != nil {
+		if spec.Clone == "" && ci.Storage == "" && len(spec.Disks) == 0 {
+			errs = append(errs, "spec.cloudInit needs spec.cloudInit.storage (or at least one disk) for the cloud-init drive")
+		}
+		// Only the syntax is checked here: whether the target exists is
+		// a property of the machine running apply, not of the manifest.
+		if ci.PasswordFrom != "" {
+			if err := secretref.Validate(ci.PasswordFrom); err != nil {
+				errs = append(errs, "spec.cloudInit.passwordFrom "+err.Error())
+			}
+		}
 	}
 
 	errs = append(errs, rawErrors(name, spec)...)

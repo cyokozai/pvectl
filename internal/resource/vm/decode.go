@@ -13,6 +13,9 @@ import (
 var renamedFields = map[string]string{
 	"startOnBoot": "spec.startOnBoot was replaced by spec.runStrategy (Halted | Always | Manual); " +
 		"`startOnBoot: true` is now `runStrategy: Always`, and omitting it is `runStrategy: Manual`",
+	"password": "spec.cloudInit.password was replaced by spec.cloudInit.passwordFrom, " +
+		"which points at the secret instead of carrying it: `passwordFrom: env:PVE_VM_PASSWORD` " +
+		"or `passwordFrom: file:/run/secrets/vmpw`",
 }
 
 // decodeSpec decodes a manifest's spec, translating renamed fields into

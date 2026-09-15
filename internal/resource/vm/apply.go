@@ -9,6 +9,7 @@ import (
 	"github.com/cyokozai/pvectl/internal/diff"
 	"github.com/cyokozai/pvectl/internal/resource"
 	"github.com/cyokozai/pvectl/internal/runtime"
+	"github.com/cyokozai/pvectl/internal/secretref"
 )
 
 // Apply implements resource.Handler: idempotent create-or-update.
@@ -27,8 +28,13 @@ func (h *Handler) Apply(ctx context.Context, c api.Client, obj *runtime.Unstruct
 		return nil, fmt.Errorf("%s: %w", obj.Source, err)
 	}
 
+	warnings, err := resolveSecrets(spec, opts.DryRun)
+	if err != nil {
+		return nil, fmt.Errorf("%s: virtualmachine %q: %w", obj.Source, name, err)
+	}
+
 	if opts.DryRun == resource.DryRunClient {
-		return &resource.ApplyResult{Action: resource.ActionValidated, Name: name}, nil
+		return &resource.ApplyResult{Action: resource.ActionValidated, Name: name, Warnings: warnings}, nil
 	}
 
 	ref, err := h.resolveRef(ctx, c, name, spec)
@@ -36,13 +42,33 @@ func (h *Handler) Apply(ctx context.Context, c api.Client, obj *runtime.Unstruct
 		return nil, err
 	}
 	if ref == nil {
-		return h.applyCreate(ctx, c, name, spec, opts)
+		return h.applyCreate(ctx, c, name, spec, opts, warnings)
 	}
-	return h.applyUpdate(ctx, c, name, spec, ref, opts)
+	return h.applyUpdate(ctx, c, name, spec, ref, opts, warnings)
 }
 
-func (h *Handler) applyCreate(ctx context.Context, c api.Client, name string, spec *Spec, opts resource.ApplyOptions) (*resource.ApplyResult, error) {
-	var warnings []string
+// resolveSecrets turns manifest secret references into values. A
+// client-side dry-run checks the manifest, not the machine it runs on,
+// so an unresolvable reference is reported as a warning there and as an
+// error everywhere else.
+func resolveSecrets(spec *Spec, dryRun resource.DryRunMode) ([]string, error) {
+	ci := spec.CloudInit
+	if ci == nil || ci.PasswordFrom == "" {
+		return nil, nil
+	}
+	value, err := secretref.Resolve(ci.PasswordFrom)
+	if err == nil {
+		ci.resolvedPassword = value
+		return nil, nil
+	}
+	if dryRun == resource.DryRunClient && errors.Is(err, secretref.ErrUnresolved) {
+		return []string{fmt.Sprintf("spec.cloudInit.passwordFrom %q is not resolvable here: %v "+
+			"(the reference itself is valid; a real apply needs it present)", ci.PasswordFrom, err)}, nil
+	}
+	return nil, fmt.Errorf("spec.cloudInit.passwordFrom: %w", err)
+}
+
+func (h *Handler) applyCreate(ctx context.Context, c api.Client, name string, spec *Spec, opts resource.ApplyOptions, warnings []string) (*resource.ApplyResult, error) {
 	if spec.Clone != "" && len(spec.Disks) > 0 {
 		warnings = append(warnings, "spec.disks are ignored when cloning; the clone keeps the source's disks")
 	}
@@ -107,8 +133,7 @@ func (h *Handler) createFromClone(ctx context.Context, c api.Client, name string
 	return nil
 }
 
-func (h *Handler) applyUpdate(ctx context.Context, c api.Client, name string, spec *Spec, ref *api.GuestRef, opts resource.ApplyOptions) (*resource.ApplyResult, error) {
-	var warnings []string
+func (h *Handler) applyUpdate(ctx context.Context, c api.Client, name string, spec *Spec, ref *api.GuestRef, opts resource.ApplyOptions, warnings []string) (*resource.ApplyResult, error) {
 	if spec.Clone != "" {
 		warnings = append(warnings, "spec.clone is create-only and ignored on update")
 	}

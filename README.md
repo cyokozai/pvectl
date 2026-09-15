@@ -123,10 +123,26 @@ manifest reports `configured` when it moves the VM.
 Guardrails: `vmid` and `targetNode` are immutable (mismatch is an error,
 never a silent recreate); disks cannot shrink or change storage/format
 in place; `clone`/`pool` are create-only (warned and ignored on update);
-`cloudInit.password` is write-only.
+`cloudInit.passwordFrom` is write-only.
 
 `pvectl get vm NAME -o yaml` round-trips: applying its output reports
 `unchanged`.
+
+### Secrets
+
+Manifests reference the cloud-init password instead of carrying it, so
+they stay safe to commit:
+
+```yaml
+spec:
+  cloudInit:
+    passwordFrom: env:PVE_VM_PASSWORD     # or file:/run/secrets/vmpw
+```
+
+`file:` references have their trailing newline trimmed. The reference is
+resolved when apply runs; `--dry-run=client` checks the syntax and warns
+(rather than fails) when the target is missing, since a client dry-run
+validates the manifest, not the machine it runs on.
 
 ### Unmodeled API fields
 

@@ -128,7 +128,7 @@ func TestHandlerGet(t *testing.T) {
 		if vm.Spec.CloudInit == nil || vm.Spec.CloudInit.User != "admin" || len(vm.Spec.CloudInit.SSHKeys) != 1 {
 			t.Errorf("cloudInit = %+v", vm.Spec.CloudInit)
 		}
-		if vm.Spec.CloudInit.Password != "" {
+		if vm.Spec.CloudInit.PasswordFrom != "" {
 			t.Error("masked cipassword must not be read back into the spec")
 		}
 		if vm.Spec.RunStrategy != RunStrategyAlways || len(vm.Spec.Tags) != 2 {

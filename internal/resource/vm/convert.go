@@ -50,7 +50,7 @@ func rawConflicts(name string, spec *Spec) []string {
 	if len(spec.Raw) == 0 {
 		return nil
 	}
-	generated := typedCreateParams(name, spec)
+	generated := typedCreateParams(name, probeSpec(spec))
 	var conflicts []string
 	for key := range spec.Raw {
 		if _, has := generated[key]; has {
@@ -59,6 +59,21 @@ func rawConflicts(name string, spec *Spec) []string {
 	}
 	sort.Strings(conflicts)
 	return conflicts
+}
+
+// probeSpec returns a copy of spec with deferred values filled in, so
+// the generated key set is complete even before apply resolves them.
+// cloudInit.passwordFrom produces cipassword only once resolved, and
+// validation runs before that.
+func probeSpec(spec *Spec) *Spec {
+	if spec.CloudInit == nil || spec.CloudInit.PasswordFrom == "" || spec.CloudInit.resolvedPassword != "" {
+		return spec
+	}
+	probe := *spec
+	ci := *spec.CloudInit
+	ci.resolvedPassword = "\x00unresolved"
+	probe.CloudInit = &ci
+	return &probe
 }
 
 // cloneParams renders the parameter map for POST /nodes/{node}/qemu/{src}/clone.
@@ -125,8 +140,8 @@ func typedConfigParams(name string, spec *Spec) map[string]any {
 		if ci.User != "" {
 			params["ciuser"] = ci.User
 		}
-		if ci.Password != "" {
-			params["cipassword"] = ci.Password
+		if ci.resolvedPassword != "" {
+			params["cipassword"] = ci.resolvedPassword
 		}
 		if len(ci.SSHKeys) > 0 {
 			params["sshkeys"] = url.PathEscape(strings.Join(ci.SSHKeys, "\n"))

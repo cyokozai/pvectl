@@ -2,6 +2,8 @@ package vm
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -498,6 +500,90 @@ func TestApplyRunStrategy(t *testing.T) {
 		_, err := apply(t, seededFake(), doc, resource.ApplyOptions{})
 		if err == nil || !strings.Contains(err.Error(), "runStrategy") {
 			t.Fatalf("Apply() error = %v, want a hint naming runStrategy", err)
+		}
+	})
+}
+
+func TestApplyPasswordFrom(t *testing.T) {
+	withPassword := func(ref string) string {
+		return strings.Replace(newVMManifest, "  disks:",
+			"  cloudInit:\n    user: admin\n    passwordFrom: "+ref+"\n  disks:", 1)
+	}
+
+	t.Run("env reference reaches cipassword on create", func(t *testing.T) {
+		t.Setenv("PVECTL_TEST_VM_PASSWORD", "s3cret")
+		f := seededFake()
+		if _, err := apply(t, f, withPassword("env:PVECTL_TEST_VM_PASSWORD"), resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if got := f.Creates[0].Params["cipassword"]; got != "s3cret" {
+			t.Errorf("cipassword = %#v, want the resolved value", got)
+		}
+	})
+
+	t.Run("file reference reaches cipassword on create", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "vmpw")
+		if err := os.WriteFile(path, []byte("from-file\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		f := seededFake()
+		if _, err := apply(t, f, withPassword("file:"+path), resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if got := f.Creates[0].Params["cipassword"]; got != "from-file" {
+			t.Errorf("cipassword = %#v, want the file contents without the newline", got)
+		}
+	})
+
+	t.Run("unresolvable reference errors on a real apply", func(t *testing.T) {
+		_, err := apply(t, seededFake(), withPassword("env:PVECTL_TEST_VM_MISSING"), resource.ApplyOptions{})
+		if err == nil || !strings.Contains(err.Error(), "passwordFrom") {
+			t.Fatalf("Apply() error = %v, want an unresolved secret error", err)
+		}
+	})
+
+	t.Run("client dry-run warns instead of failing", func(t *testing.T) {
+		res, err := apply(t, seededFake(), withPassword("env:PVECTL_TEST_VM_MISSING"),
+			resource.ApplyOptions{DryRun: resource.DryRunClient})
+		if err != nil {
+			t.Fatalf("Apply() error = %v, want the manifest to validate", err)
+		}
+		if res.Action != resource.ActionValidated {
+			t.Errorf("Action = %v", res.Action)
+		}
+		if len(res.Warnings) != 1 || !strings.Contains(res.Warnings[0], "passwordFrom") {
+			t.Errorf("Warnings = %+v, want one unresolvable-reference warning", res.Warnings)
+		}
+	})
+
+	t.Run("bad syntax fails even under client dry-run", func(t *testing.T) {
+		_, err := apply(t, seededFake(), withPassword("hunter2"), resource.ApplyOptions{DryRun: resource.DryRunClient})
+		if err == nil || !strings.Contains(err.Error(), "passwordFrom") {
+			t.Fatalf("Apply() error = %v, want a syntax error", err)
+		}
+	})
+
+	t.Run("cipassword stays out of diffs and updates", func(t *testing.T) {
+		t.Setenv("PVECTL_TEST_VM_PASSWORD", "s3cret")
+		f := seededFake()
+		doc := strings.Replace(existingVMManifest, "    user: admin",
+			"    user: admin\n    passwordFrom: env:PVECTL_TEST_VM_PASSWORD", 1)
+		res, err := apply(t, f, doc, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		// The API masks cipassword; the write-only rule keeps the mask
+		// from showing up as a permanent diff.
+		if res.Action != resource.ActionUnchanged {
+			t.Errorf("Action = %v, want unchanged (diff %+v)", res.Action, res.Diff)
+		}
+	})
+
+	t.Run("the removed password field points at passwordFrom", func(t *testing.T) {
+		doc := strings.Replace(existingVMManifest, "    user: admin", "    user: admin\n    password: hunter2", 1)
+		_, err := apply(t, seededFake(), doc, resource.ApplyOptions{})
+		if err == nil || !strings.Contains(err.Error(), "passwordFrom") {
+			t.Fatalf("Apply() error = %v, want a hint naming passwordFrom", err)
 		}
 	})
 }
