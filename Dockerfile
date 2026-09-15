@@ -1,5 +1,5 @@
 # ===== Development =====
-FROM golang:1.26-alpine AS dev
+FROM golang:1.26.8-alpine AS dev
 
 RUN apk add --no-cache git curl bash build-base && \
     go install golang.org/x/tools/cmd/goimports@latest && \
@@ -10,7 +10,7 @@ WORKDIR /workspace
 CMD ["sleep", "infinity"]
 
 # ===== Build =====
-FROM golang:1.26-alpine AS build
+FROM golang:1.26.8-alpine AS build
 
 WORKDIR /src
 
