@@ -37,7 +37,11 @@ func newDeleteCmd(f *cliopt.Factory, reg *resource.Registry) *cobra.Command {
 					if err != nil {
 						return err
 					}
-					if err := h.Delete(cmd.Context(), client, obj.Metadata.Name); err != nil {
+					deleter, err := asDeleter(h)
+					if err != nil {
+						return err
+					}
+					if err := deleter.Delete(cmd.Context(), client, obj.Metadata.Name); err != nil {
 						return err
 					}
 					fmt.Fprintf(cmd.OutOrStdout(), "%s deleted\n", resourceID(h, obj.Metadata.Name))
@@ -52,8 +56,12 @@ func newDeleteCmd(f *cliopt.Factory, reg *resource.Registry) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			deleter, err := asDeleter(h)
+			if err != nil {
+				return err
+			}
 			for _, name := range args[1:] {
-				if err := h.Delete(cmd.Context(), client, name); err != nil {
+				if err := deleter.Delete(cmd.Context(), client, name); err != nil {
 					return err
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "%s deleted\n", resourceID(h, name))
@@ -64,4 +72,13 @@ func newDeleteCmd(f *cliopt.Factory, reg *resource.Registry) *cobra.Command {
 	cmd.Flags().StringArrayVarP(&filenames, "filename", "f", nil,
 		"manifest file, directory, or - for stdin (repeatable)")
 	return cmd
+}
+
+// asDeleter narrows a handler to the optional delete capability.
+func asDeleter(h resource.Handler) (resource.Deleter, error) {
+	deleter, ok := h.(resource.Deleter)
+	if !ok {
+		return nil, fmt.Errorf("resource type %s does not support delete", h.GVK().Kind)
+	}
+	return deleter, nil
 }

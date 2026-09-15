@@ -54,12 +54,14 @@ type ApplyResult struct {
 	Warnings []string
 }
 
-// Handler implements every generic verb for one resource kind.
+// Handler is the read side every resource kind must implement. Kinds
+// that cannot be declared (a node exists whether or not a manifest says
+// so) implement only this; writing verbs come from the optional
+// capability interfaces below (ADR-006).
 type Handler interface {
-	// Kind is the manifest kind, e.g. "VirtualMachine".
-	Kind() string
-	// APIVersion is the manifest apiVersion this handler accepts.
-	APIVersion() string
+	// GVK is the manifest type identity, e.g.
+	// {Group: "pve.io", Version: "v1alpha1", Kind: "VirtualMachine"}.
+	GVK() runtime.GVK
 	// Aliases are the names accepted on the command line (all lowercase),
 	// e.g. "vm", "vms", "virtualmachine", "virtualmachines".
 	Aliases() []string
@@ -68,10 +70,19 @@ type Handler interface {
 
 	Get(ctx context.Context, c api.Client, name string) (printer.Object, error)
 	List(ctx context.Context, c api.Client) ([]printer.Object, error)
-	Delete(ctx context.Context, c api.Client, name string) error
+	Describe(ctx context.Context, c api.Client, name string, w io.Writer) error
+}
+
+// Applier is implemented by kinds that can be declared in a manifest,
+// i.e. that support "pvectl apply" and "pvectl diff".
+type Applier interface {
 	Apply(ctx context.Context, c api.Client, obj *runtime.Unstructured, opts ApplyOptions) (*ApplyResult, error)
 	Diff(ctx context.Context, c api.Client, obj *runtime.Unstructured) (*diff.Result, error)
-	Describe(ctx context.Context, c api.Client, name string, w io.Writer) error
+}
+
+// Deleter is implemented by kinds that support "pvectl delete".
+type Deleter interface {
+	Delete(ctx context.Context, c api.Client, name string) error
 }
 
 // Starter is implemented by kinds that support "pvectl start <kind> <name>".

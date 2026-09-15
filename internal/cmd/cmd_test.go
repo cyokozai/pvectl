@@ -13,6 +13,7 @@ import (
 	"github.com/cyokozai/pvectl/internal/api/apitest"
 	"github.com/cyokozai/pvectl/internal/cliopt"
 	"github.com/cyokozai/pvectl/internal/config"
+	"github.com/cyokozai/pvectl/internal/resource"
 )
 
 const testConfig = `
@@ -53,13 +54,20 @@ type testEnv struct {
 // always passing --config. Returns the command error.
 func (e *testEnv) run(t *testing.T, args ...string) error {
 	t.Helper()
+	return e.runWith(t, DefaultRegistry(), args...)
+}
+
+// runWith is run against a caller-supplied registry, for exercising
+// handlers that are not built in.
+func (e *testEnv) runWith(t *testing.T, reg *resource.Registry, args ...string) error {
+	t.Helper()
 	f := &cliopt.Factory{
 		NewClient: func(ctx context.Context, node config.Node, user config.User, opts api.Options) (api.Client, error) {
 			e.lastServer = node.Server
 			return e.fake, nil
 		},
 	}
-	root := NewRootCmd(f, DefaultRegistry())
+	root := NewRootCmd(f, reg)
 	root.SetOut(&e.stdout)
 	root.SetErr(&e.stderr)
 	root.SetArgs(append([]string{"--config", e.configPath}, args...))
