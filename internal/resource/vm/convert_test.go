@@ -31,7 +31,7 @@ func fullSpec() *Spec {
 			IPConfig:   "ip=10.0.0.5/24,gw=10.0.0.1",
 			Nameserver: "1.1.1.1",
 		},
-		StartOnBoot: true,
+		RunStrategy: RunStrategyAlways,
 		Tags:        []string{"web", "prod"},
 		Description: "test vm",
 	}

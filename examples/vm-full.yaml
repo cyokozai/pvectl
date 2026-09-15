@@ -40,7 +40,11 @@ spec:
     ipConfig: "ip=10.0.0.50/24,gw=10.0.0.1"
     nameserver: 1.1.1.1
     storage: local-lvm    # cloud-init drive storage (defaults to first disk's)
-  startOnBoot: true
+  # Desired power state apply converges to:
+  #   Manual (default) — apply never touches the power state
+  #   Always           — onboot=1, and apply starts the VM if stopped
+  #   Halted           — onboot=0, and apply stops the VM if running
+  runStrategy: Always
   tags:
     - demo
     - full

@@ -131,11 +131,25 @@ func TestHandlerGet(t *testing.T) {
 		if vm.Spec.CloudInit.Password != "" {
 			t.Error("masked cipassword must not be read back into the spec")
 		}
-		if !vm.Spec.StartOnBoot || len(vm.Spec.Tags) != 2 {
-			t.Errorf("onboot/tags = %v %v", vm.Spec.StartOnBoot, vm.Spec.Tags)
+		if vm.Spec.RunStrategy != RunStrategyAlways || len(vm.Spec.Tags) != 2 {
+			t.Errorf("runStrategy/tags = %v %v", vm.Spec.RunStrategy, vm.Spec.Tags)
 		}
 		if vm.Status == nil || vm.Status.State != "running" || vm.Status.VMID != 100 {
 			t.Errorf("status = %+v", vm.Status)
+		}
+	})
+
+	t.Run("onboot maps back to a run strategy", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["onboot"] = "0"
+		obj, err := h.Get(context.Background(), f, "web-server")
+		if err != nil {
+			t.Fatalf("Get() error = %v", err)
+		}
+		// onboot=0 is Manual, not Halted: export must never ask apply to
+		// stop a VM the user did not declare stopped.
+		if got := obj.(*VM).Spec.RunStrategy; got != RunStrategyManual {
+			t.Errorf("RunStrategy = %q, want Manual", got)
 		}
 	})
 

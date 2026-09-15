@@ -105,8 +105,13 @@ func typedConfigParams(name string, spec *Spec) map[string]any {
 	if spec.Description != "" {
 		params["description"] = spec.Description
 	}
-	if spec.StartOnBoot {
+	// Manual (the default) leaves onboot unmanaged; only the two
+	// strategies that express an intent about boot declare the key.
+	switch spec.RunStrategy {
+	case RunStrategyAlways:
 		params["onboot"] = 1
+	case RunStrategyHalted:
+		params["onboot"] = 0
 	}
 	if len(spec.Tags) > 0 {
 		tags := append([]string(nil), spec.Tags...)

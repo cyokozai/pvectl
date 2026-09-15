@@ -31,14 +31,35 @@ type Spec struct {
 	Disks       []Disk     `yaml:"disks,omitempty" json:"disks,omitempty"`
 	Networks    []Network  `yaml:"networks,omitempty" json:"networks,omitempty"`
 	CloudInit   *CloudInit `yaml:"cloudInit,omitempty" json:"cloudInit,omitempty"`
-	StartOnBoot bool       `yaml:"startOnBoot,omitempty" json:"startOnBoot,omitempty"`
-	Tags        []string   `yaml:"tags,omitempty" json:"tags,omitempty"`
+	// RunStrategy is the desired power state apply converges to.
+	// Defaults to Manual, which leaves the power state alone.
+	RunStrategy RunStrategy `yaml:"runStrategy,omitempty" json:"runStrategy,omitempty"`
+	Tags        []string    `yaml:"tags,omitempty" json:"tags,omitempty"`
 	// Raw is the escape hatch for Proxmox API config keys pvectl does
 	// not model yet (ADR-006 §7). Keys are flat API keys and values are
 	// passed through unvalidated. Declaring a key pvectl already
 	// generates from a typed field is an error.
 	Raw map[string]string `yaml:"raw,omitempty" json:"raw,omitempty"`
 }
+
+// RunStrategy says what power state apply should converge the VM to
+// (ADR-005 §3). It is a desired state, not a one-shot command: the
+// imperative verbs live in `pvectl start` / `stop`.
+type RunStrategy string
+
+// The three run strategies.
+const (
+	// RunStrategyHalted sets onboot=0 and stops the VM if it is running.
+	RunStrategyHalted RunStrategy = "Halted"
+	// RunStrategyAlways sets onboot=1 and starts the VM if it is stopped.
+	RunStrategyAlways RunStrategy = "Always"
+	// RunStrategyManual is the default: apply never touches the power
+	// state and leaves onboot unmanaged.
+	RunStrategyManual RunStrategy = "Manual"
+)
+
+// runStrategies lists the accepted values for error messages.
+var runStrategies = []RunStrategy{RunStrategyHalted, RunStrategyAlways, RunStrategyManual}
 
 // Resources holds CPU and memory sizing.
 type Resources struct {

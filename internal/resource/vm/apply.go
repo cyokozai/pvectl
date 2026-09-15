@@ -16,10 +16,11 @@ import (
 //	decode → validate → resolve identity (vmid, else name)
 //	  not found → create (direct or clone+reconfigure)
 //	  found     → diff managed keys → PUT changed keys / resize grown disks
+//	  finally   → converge the power state to spec.runStrategy
 func (h *Handler) Apply(ctx context.Context, c api.Client, obj *runtime.Unstructured, opts resource.ApplyOptions) (*resource.ApplyResult, error) {
 	name := obj.Metadata.Name
-	spec := &Spec{}
-	if err := obj.DecodeSpec(spec); err != nil {
+	spec, err := decodeSpec(obj)
+	if err != nil {
 		return nil, err
 	}
 	if err := validateSpec(name, spec); err != nil {
@@ -69,6 +70,12 @@ func (h *Handler) applyCreate(ctx context.Context, c api.Client, name string, sp
 		if err := c.CreateQemu(ctx, spec.TargetNode, vmid, createParams(name, spec)); err != nil {
 			return nil, err
 		}
+	}
+
+	ref := &api.GuestRef{VMID: vmid, Node: spec.TargetNode, Type: "qemu"}
+	if _, err := h.reconcilePower(ctx, c, spec, ref); err != nil {
+		return nil, fmt.Errorf("virtualmachine %q was created but could not be brought to runStrategy %s: %w",
+			name, spec.RunStrategy, err)
 	}
 	return &resource.ApplyResult{Action: resource.ActionCreated, Name: name, Warnings: warnings}, nil
 }
@@ -120,7 +127,15 @@ func (h *Handler) applyUpdate(ctx context.Context, c api.Client, name string, sp
 		return nil, err
 	}
 	d := diff.Compute(current, desired, NormalizeRules(desired))
-	if d.Empty() {
+
+	// The power state is part of the desired state, so an otherwise
+	// identical config still counts as a change when runStrategy asks
+	// for a transition.
+	power, err := h.plannedPower(ctx, c, spec, ref)
+	if err != nil {
+		return nil, err
+	}
+	if d.Empty() && power == powerNone {
 		return &resource.ApplyResult{Action: resource.ActionUnchanged, Name: name, Warnings: warnings}, nil
 	}
 
@@ -144,7 +159,79 @@ func (h *Handler) applyUpdate(ctx context.Context, c api.Client, name string, sp
 			return nil, fmt.Errorf("failed to resize disk %s: %w", r.disk, err)
 		}
 	}
+	if err := h.applyPower(ctx, c, power, ref); err != nil {
+		return nil, fmt.Errorf("virtualmachine %q was configured but could not be brought to runStrategy %s: %w",
+			name, spec.RunStrategy, err)
+	}
 	return &resource.ApplyResult{Action: resource.ActionConfigured, Name: name, Diff: &d, Warnings: warnings}, nil
+}
+
+// powerAction is the transition runStrategy asks for, if any.
+type powerAction string
+
+const (
+	powerNone  powerAction = ""
+	powerStart powerAction = "start"
+	powerStop  powerAction = "stop"
+)
+
+// plannedPower reads the live power state and reports the transition
+// spec.runStrategy wants. Manual (the default) never plans one, and so
+// never costs an API call either.
+func (h *Handler) plannedPower(ctx context.Context, c api.Client, spec *Spec, ref *api.GuestRef) (powerAction, error) {
+	if spec.RunStrategy != RunStrategyAlways && spec.RunStrategy != RunStrategyHalted {
+		return powerNone, nil
+	}
+	summary, err := h.summaryByID(ctx, c, ref.VMID)
+	if err != nil {
+		return powerNone, err
+	}
+	running := summary.Status == "running"
+	switch {
+	case spec.RunStrategy == RunStrategyAlways && !running:
+		return powerStart, nil
+	case spec.RunStrategy == RunStrategyHalted && running:
+		return powerStop, nil
+	default:
+		return powerNone, nil
+	}
+}
+
+// applyPower performs the planned transition.
+func (h *Handler) applyPower(ctx context.Context, c api.Client, action powerAction, ref *api.GuestRef) error {
+	switch action {
+	case powerStart:
+		return c.StartGuest(ctx, ref)
+	case powerStop:
+		return c.StopGuest(ctx, ref)
+	default:
+		return nil
+	}
+}
+
+// reconcilePower plans and performs in one step. Reports whether the
+// power state was changed.
+func (h *Handler) reconcilePower(ctx context.Context, c api.Client, spec *Spec, ref *api.GuestRef) (bool, error) {
+	action, err := h.plannedPower(ctx, c, spec, ref)
+	if err != nil || action == powerNone {
+		return false, err
+	}
+	return true, h.applyPower(ctx, c, action, ref)
+}
+
+// summaryByID returns the cluster-level row for a vmid. GuestRef alone
+// carries no power state, and api.Client has no per-guest status call.
+func (h *Handler) summaryByID(ctx context.Context, c api.Client, vmid int) (*api.GuestSummary, error) {
+	guests, err := c.ListGuests(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, g := range guests {
+		if g.VMID == vmid {
+			return &g, nil
+		}
+	}
+	return nil, fmt.Errorf("vmid %d: %w", vmid, api.ErrNotFound)
 }
 
 type resizeOp struct {
@@ -226,8 +313,8 @@ func rebuildDiskValue(cur diskValue, des diskValue) (string, bool) {
 // manifest, without writing anything.
 func (h *Handler) Diff(ctx context.Context, c api.Client, obj *runtime.Unstructured) (*diff.Result, error) {
 	name := obj.Metadata.Name
-	spec := &Spec{}
-	if err := obj.DecodeSpec(spec); err != nil {
+	spec, err := decodeSpec(obj)
+	if err != nil {
 		return nil, err
 	}
 	if err := validateSpec(name, spec); err != nil {

@@ -73,7 +73,10 @@ func specFromConfig(node string, cfg map[string]any) Spec {
 			},
 			Memory: cfgInt(cfg, "memory"),
 		},
-		StartOnBoot: cfgInt(cfg, "onboot") == 1,
+		// Live carries onboot, not an intent: onboot=1 is Always,
+		// anything else maps to Manual so export never asks apply to
+		// stop a VM the user did not ask to stop.
+		RunStrategy: runStrategyFromOnboot(cfgInt(cfg, "onboot")),
 		Tags:        splitSortTags(cfgString(cfg, "tags")),
 	}
 
@@ -110,6 +113,14 @@ func specFromConfig(node string, cfg map[string]any) Spec {
 		spec.CloudInit = &ci
 	}
 	return spec
+}
+
+// runStrategyFromOnboot maps the live onboot flag back to a strategy.
+func runStrategyFromOnboot(onboot int) RunStrategy {
+	if onboot == 1 {
+		return RunStrategyAlways
+	}
+	return RunStrategyManual
 }
 
 // diskFromValue parses a live disk value; cloud-init drives and CD-ROMs

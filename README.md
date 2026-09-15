@@ -108,6 +108,18 @@ then:
   disk growth becomes a resize call
 - **no change** → `unchanged`, zero writes
 
+After the config pass, apply converges the power state to
+`spec.runStrategy`:
+
+| `runStrategy` | `onboot` | apply |
+|---|---|---|
+| `Manual` (default) | unmanaged | never touches the power state |
+| `Always` | `1` | starts the VM if it is stopped |
+| `Halted` | `0` | stops the VM if it is running |
+
+A power transition counts as a change, so an otherwise identical
+manifest reports `configured` when it moves the VM.
+
 Guardrails: `vmid` and `targetNode` are immutable (mismatch is an error,
 never a silent recreate); disks cannot shrink or change storage/format
 in place; `clone`/`pool` are create-only (warned and ignored on update);

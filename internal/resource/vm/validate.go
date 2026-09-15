@@ -26,6 +26,9 @@ func validateSpec(name string, spec *Spec) error {
 			errs = append(errs, "spec.resources.memory (MB) must be greater than 0")
 		}
 	}
+	if !validRunStrategy(spec.RunStrategy) {
+		errs = append(errs, fmt.Sprintf("spec.runStrategy %q must be one of %s", spec.RunStrategy, strings.Join(runStrategyNames(), " / ")))
+	}
 	if spec.VMID != nil && *spec.VMID < 100 {
 		errs = append(errs, fmt.Sprintf("spec.vmid must be >= 100, got %d", *spec.VMID))
 	}
@@ -63,6 +66,28 @@ func validateSpec(name string, spec *Spec) error {
 		return fmt.Errorf("invalid VirtualMachine %q:\n  - %s", name, strings.Join(errs, "\n  - "))
 	}
 	return nil
+}
+
+// validRunStrategy accepts the three strategies plus the empty value,
+// which means "not declared" and behaves as Manual.
+func validRunStrategy(s RunStrategy) bool {
+	if s == "" {
+		return true
+	}
+	for _, known := range runStrategies {
+		if s == known {
+			return true
+		}
+	}
+	return false
+}
+
+func runStrategyNames() []string {
+	names := make([]string, len(runStrategies))
+	for i, s := range runStrategies {
+		names[i] = string(s)
+	}
+	return names
 }
 
 // rawErrors rejects spec.raw keys that pvectl already generates from a
