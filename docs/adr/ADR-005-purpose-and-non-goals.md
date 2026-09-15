@@ -119,3 +119,43 @@ pvectl は `export` を一級動詞として持ち、**「export の出力をそ
 - **Terraform Provider に貢献して直す**: 問題は provider の実装品質ではなくスキーマの表現力にあり、provider 側では解けない。bpg 自身が別リソース + experimental という形でしか近似できていないことがその証拠
 - **KubeVirt 型の VirtualMachine / VirtualMachineInstance 分離**: KubeVirt が分離したのは k8s 側に Pod という既存の実行単位があったため。Proxmox では config が停止中も同じ vmid に残り、実行実体を別 ID で参照しないため、`status` で足りる
 - **`qm` ラッパとして再構築**: GUI 不可 / `qm` 可の差はその大半が「GUI 未実装だが API には存在する」ものであり、`qm` 自体が API 層の薄いラッパである。網羅を目指すと SSH 前提に戻り、手元から実行できるという最大の利点を失う
+
+## 追補（2026-09-16、v0.1.0 リリース前の整理）
+
+本文（§1〜§5 と非目標）は当時の決定として残す。以下は 1 件が決定の撤回、
+もう 1 件が実装の遅れであり、性質が異なる。
+
+### `unlock` を実装しないことにした（§3 の決定を撤回）
+
+§3 の表で命令的動詞として挙げた `unlock` を取り下げる。根拠は 2 点。
+
+- `qm unlock` に対応する REST エンドポイントが存在しない。等価な操作は
+  `PUT /nodes/{node}/qemu/{vmid}/config` に `delete=lock` と `skiplock=1` を
+  渡す形になる
+- その `skiplock` は qm(1) の全コマンドで一貫して *"Ignore locks - only root is
+  allowed to use this option."* と規定されている。つまり **`root@pam` 専用**で、
+  README が推奨する API トークン認証では主経路が成立しない
+
+**「認証方式によって可否が変わる動詞をどう扱うか」は未決の設計論点である。**
+トークン認証時にエラーで落とすのか、ヘルプにも出さないのか — 挙動の約束を
+先に決めるまで実装しない。再検討する条件は次のいずれか。
+
+- 「`root@pam` のパスワード認証時のみ有効な動詞」という設計に合意できたとき
+- Proxmox 側が lock 解除の専用エンドポイントを追加したとき
+
+当面のロック解除はノード上の `qm unlock` か Web UI に委ねる。
+
+### `export` は決定を維持したまま未実装（§5）
+
+§5 の決定 — `export` を一級動詞として持ち、**「export の出力をそのまま apply
+して全件 `unchanged`」** を正しさの機械的な定義とする — は**有効のままであり、
+撤回しない**。ただし **v0.1.0 時点では未実装**である。
+
+- `internal/cmd/root.go` に登録されている動詞は get / describe / apply / diff /
+  delete / start / stop / exec / migrate / config / version のみ
+- 現状これに最も近いのは `get -o yaml` の出力をそのまま apply する round-trip
+  で、`internal/resource/vm/apply_test.go` の `TestGetYAMLRoundTrip` が
+  **単体テストとして**押さえている
+- §5 が求める e2e レベルの保証（export → apply が全件 `unchanged`）は**まだ無い**
+
+差別化軸としての位置づけは変えない。未定なのは実装時期だけである。
