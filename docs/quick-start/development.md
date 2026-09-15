@@ -18,7 +18,7 @@ pvectl の開発環境構築から動作確認、ローカルへのバイナリ�
 git clone https://github.com/cyokozai/pvectl.git
 cd pvectl
 
-# 開発コンテナを起動（golang:1.26.8-alpine + goimports + golangci-lint v2.12.2）
+# 開発コンテナを起動（golang:1.27.1-alpine + goimports + golangci-lint v2.12.2）
 make dev-up
 ```
 
@@ -26,7 +26,7 @@ make dev-up
 
 ```bash
 docker compose ps                       # pvectl-dev が Up
-docker compose exec dev go version      # go1.26.x
+docker compose exec dev go version      # go1.27.x
 ```
 
 ソースはバインドマウントされるため、ホストで編集 → コンテナに即反映される
