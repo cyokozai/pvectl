@@ -179,6 +179,49 @@ func (t *telmateClient) StopGuest(ctx context.Context, ref *GuestRef) error {
 	return nil
 }
 
+func (t *telmateClient) MigrateGuest(ctx context.Context, ref *GuestRef, target string, online bool) error {
+	params := map[string]any{"target": target}
+	if online {
+		params["online"] = true
+	}
+	path := fmt.Sprintf("/nodes/%s/%s/%d/migrate", ref.Node, guestType(ref), ref.VMID)
+	if _, err := t.c.PostWithTask(ctx, params, path); err != nil {
+		return fmt.Errorf("failed to migrate guest %d from %s to %s: %w", ref.VMID, ref.Node, target, err)
+	}
+	return nil
+}
+
+func (t *telmateClient) GuestExec(ctx context.Context, ref *GuestRef, command []string) (int, error) {
+	vmr := proxmox.NewVmRef(proxmox.GuestID(ref.VMID)) //nolint:gosec // vmids are small positive integers
+	vmr.SetNode(ref.Node)
+	vmr.SetVmType(proxmox.GuestQemu)
+
+	// []string is form-encoded as a repeated "command" key, which is how
+	// the API takes "program plus arguments" since PVE 7.
+	result, err := t.c.QemuAgentExec(ctx, vmr, map[string]any{"command": command})
+	if err != nil {
+		return 0, agentError(ref, "agent exec", err)
+	}
+	pid, ok := result["pid"]
+	if !ok {
+		return 0, fmt.Errorf("agent exec on vm %d: response carried no pid", ref.VMID)
+	}
+	return asInt(pid), nil
+}
+
+func (t *telmateClient) GuestExecStatus(ctx context.Context, ref *GuestRef, pid int) (*ExecStatus, error) {
+	path := fmt.Sprintf("/nodes/%s/qemu/%d/agent/exec-status?pid=%d", ref.Node, ref.VMID, pid)
+	body, err := t.Raw().Get(ctx, path)
+	if err != nil {
+		return nil, agentError(ref, "agent exec-status", err)
+	}
+	data, ok := body["data"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("agent exec-status of vm %d: unexpected response %v", ref.VMID, body)
+	}
+	return parseExecStatus(data), nil
+}
+
 func (t *telmateClient) NextID(ctx context.Context) (int, error) {
 	id, err := t.c.GetNextID(ctx, nil)
 	if err != nil {
@@ -188,6 +231,15 @@ func (t *telmateClient) NextID(ctx context.Context) (int, error) {
 }
 
 func (t *telmateClient) Raw() RawClient { return rawClient{c: t.c} }
+
+// guestType defaults an unset ref type to qemu so callers that built a
+// ref by hand still produce a valid path.
+func guestType(ref *GuestRef) string {
+	if ref.Type == "" {
+		return "qemu"
+	}
+	return ref.Type
+}
 
 func asString(v any) string {
 	s, _ := v.(string)

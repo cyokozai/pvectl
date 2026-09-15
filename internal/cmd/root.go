@@ -71,6 +71,8 @@ or operate on them directly with get/describe/delete/start/stop.`,
 		newDeleteCmd(f, reg),
 		newStartCmd(f, reg),
 		newStopCmd(f, reg),
+		newExecCmd(f, reg),
+		newMigrateCmd(f, reg),
 		newConfigCmd(f),
 		newVersionCmd(),
 	)
