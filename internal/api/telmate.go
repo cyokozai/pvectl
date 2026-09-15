@@ -198,8 +198,18 @@ func (t *telmateClient) GuestExec(ctx context.Context, ref *GuestRef, command []
 
 	// []string is form-encoded as a repeated "command" key, which is how
 	// the API takes "program plus arguments" since PVE 7.
-	result, err := t.c.QemuAgentExec(ctx, vmr, map[string]any{"command": command})
+	//
+	// The POST itself is a single request, but QemuAgentExec resolves an
+	// incomplete VmRef first, and that resolution goes through the SDK's
+	// retrying GET. Bounding the whole call keeps a ref without a node
+	// from spending the caller's deadline on retry sleeps.
+	result, err := withinCtx(ctx, func() (map[string]any, error) {
+		return t.c.QemuAgentExec(ctx, vmr, map[string]any{"command": command})
+	})
 	if err != nil {
+		if ctx.Err() != nil {
+			return 0, ctx.Err()
+		}
 		return 0, agentError(ref, "agent exec", err)
 	}
 	pid, ok := result["pid"]
@@ -211,7 +221,9 @@ func (t *telmateClient) GuestExec(ctx context.Context, ref *GuestRef, command []
 
 func (t *telmateClient) GuestExecStatus(ctx context.Context, ref *GuestRef, pid int) (*ExecStatus, error) {
 	path := fmt.Sprintf("/nodes/%s/qemu/%d/agent/exec-status?pid=%d", ref.Node, ref.VMID, pid)
-	body, err := t.Raw().Get(ctx, path)
+	// getOnce, not Get: ExecWait already polls, so a retry underneath it
+	// buys nothing and its sleeps would outlast --exec-timeout.
+	body, err := t.raw().getOnce(ctx, path)
 	if err != nil {
 		return nil, agentError(ref, "agent exec-status", err)
 	}
@@ -230,7 +242,11 @@ func (t *telmateClient) NextID(ctx context.Context) (int, error) {
 	return int(id), nil
 }
 
-func (t *telmateClient) Raw() RawClient { return rawClient{c: t.c} }
+func (t *telmateClient) Raw() RawClient { return t.raw() }
+
+// raw is Raw without the interface, for the paths inside this package
+// that need rawClient's unexported helpers.
+func (t *telmateClient) raw() rawClient { return rawClient{c: t.c} }
 
 // guestType defaults an unset ref type to qemu so callers that built a
 // ref by hand still produce a valid path.

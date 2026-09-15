@@ -271,3 +271,25 @@ func TestRawGet(t *testing.T) {
 		t.Errorf("Raw().Get(/cluster/nextid) = %+v, want data=102", res)
 	}
 }
+
+// TestRawGetStopsAtContextDeadline pins the bound the retrying read
+// used to ignore: proxmox-api-go sleeps between attempts and never
+// consults the context, so a dead context cost six seconds of sleeping
+// before the error came back.
+func TestRawGetStopsAtContextDeadline(t *testing.T) {
+	c := newTestClient(t, newTestServer(t))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	start := time.Now()
+	_, err := c.Raw().Get(ctx, "/cluster/nextid")
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Raw().Get() error = %v, want context.Canceled", err)
+	}
+	if elapsed > time.Second {
+		t.Errorf("Raw().Get() on a cancelled context took %s, want it to return at once", elapsed)
+	}
+}
