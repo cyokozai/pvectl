@@ -33,6 +33,11 @@ type Spec struct {
 	CloudInit   *CloudInit `yaml:"cloudInit,omitempty" json:"cloudInit,omitempty"`
 	StartOnBoot bool       `yaml:"startOnBoot,omitempty" json:"startOnBoot,omitempty"`
 	Tags        []string   `yaml:"tags,omitempty" json:"tags,omitempty"`
+	// Raw is the escape hatch for Proxmox API config keys pvectl does
+	// not model yet (ADR-006 §7). Keys are flat API keys and values are
+	// passed through unvalidated. Declaring a key pvectl already
+	// generates from a typed field is an error.
+	Raw map[string]string `yaml:"raw,omitempty" json:"raw,omitempty"`
 }
 
 // Resources holds CPU and memory sizing.

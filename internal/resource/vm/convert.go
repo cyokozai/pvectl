@@ -14,7 +14,15 @@ const cloudInitSlot = "ide2"
 // /nodes/{node}/qemu. Disk values use allocation syntax ("storage:GB").
 // vmid is intentionally absent — the api layer sets it.
 func createParams(name string, spec *Spec) map[string]any {
-	params := configParams(name, spec)
+	params := typedCreateParams(name, spec)
+	mergeRaw(params, spec)
+	return params
+}
+
+// typedCreateParams is createParams without spec.raw merged in — the
+// key set pvectl generates from typed fields alone.
+func typedCreateParams(name string, spec *Spec) map[string]any {
+	params := typedConfigParams(name, spec)
 
 	for _, disk := range spec.Disks {
 		params[disk.Name] = diskAllocationValue(disk)
@@ -23,6 +31,34 @@ func createParams(name string, spec *Spec) map[string]any {
 		params[cloudInitSlot] = cloudInitDriveValue(spec)
 	}
 	return params
+}
+
+// mergeRaw copies spec.raw onto the generated params. Values are passed
+// through verbatim; validateSpec has already rejected keys that collide
+// with a generated one.
+func mergeRaw(params map[string]any, spec *Spec) {
+	for key, value := range spec.Raw {
+		params[key] = value
+	}
+}
+
+// rawConflicts lists the spec.raw keys pvectl already generates from a
+// typed field. The comparison is made against the generated flat key
+// set — not a static field list — so slot-addressed keys (scsi0, net1,
+// ide2, ...) are caught too.
+func rawConflicts(name string, spec *Spec) []string {
+	if len(spec.Raw) == 0 {
+		return nil
+	}
+	generated := typedCreateParams(name, spec)
+	var conflicts []string
+	for key := range spec.Raw {
+		if _, has := generated[key]; has {
+			conflicts = append(conflicts, key)
+		}
+	}
+	sort.Strings(conflicts)
+	return conflicts
 }
 
 // cloneParams renders the parameter map for POST /nodes/{node}/qemu/{src}/clone.
@@ -48,6 +84,13 @@ func cloneParams(name string, spec *Spec, newID int) map[string]any {
 // /nodes/{node}/qemu/{vmid}/config: everything except disk allocation
 // and create-only keys. Used for updates and post-clone configuration.
 func configParams(name string, spec *Spec) map[string]any {
+	params := typedConfigParams(name, spec)
+	mergeRaw(params, spec)
+	return params
+}
+
+// typedConfigParams is configParams without spec.raw merged in.
+func typedConfigParams(name string, spec *Spec) map[string]any {
 	params := map[string]any{
 		"name":   name,
 		"cores":  spec.Resources.CPU.Cores,
@@ -106,10 +149,11 @@ func configParams(name string, spec *Spec) map[string]any {
 // values. The cloud-init drive slot is excluded — it is an
 // implementation detail, not managed state.
 func desiredParams(name string, spec *Spec) map[string]any {
-	params := configParams(name, spec)
+	params := typedConfigParams(name, spec)
 	for _, disk := range spec.Disks {
 		params[disk.Name] = diskAllocationValue(disk)
 	}
+	mergeRaw(params, spec)
 	return params
 }
 

@@ -2,6 +2,7 @@ package vm
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -56,8 +57,36 @@ func validateSpec(name string, spec *Spec) error {
 		errs = append(errs, "spec.cloudInit needs spec.cloudInit.storage (or at least one disk) for the cloud-init drive")
 	}
 
+	errs = append(errs, rawErrors(name, spec)...)
+
 	if len(errs) > 0 {
 		return fmt.Errorf("invalid VirtualMachine %q:\n  - %s", name, strings.Join(errs, "\n  - "))
 	}
 	return nil
+}
+
+// rawErrors rejects spec.raw keys that pvectl already generates from a
+// typed field. Double management is a silent-overwrite hazard: whichever
+// of the two won would depend on map iteration, not on the manifest.
+func rawErrors(name string, spec *Spec) []string {
+	var errs []string
+	for _, key := range sortedRawKeys(spec) {
+		if strings.TrimSpace(key) == "" {
+			errs = append(errs, "spec.raw has an empty key")
+		}
+	}
+	for _, key := range rawConflicts(name, spec) {
+		errs = append(errs, fmt.Sprintf(
+			"spec.raw.%s duplicates a key pvectl already generates from a typed spec field; declare it in one place only", key))
+	}
+	return errs
+}
+
+func sortedRawKeys(spec *Spec) []string {
+	keys := make([]string, 0, len(spec.Raw))
+	for k := range spec.Raw {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

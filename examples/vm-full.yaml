@@ -44,3 +44,13 @@ spec:
   tags:
     - demo
     - full
+  # Escape hatch for Proxmox API config keys pvectl does not model yet.
+  # Keys are flat API keys, values are passed through unvalidated, and
+  # only the keys declared here are compared and updated. Declaring a
+  # key pvectl already generates from a typed field above is an error.
+  raw:
+    hookscript: "local:snippets/hook.pl"
+    args: "-cpu host,+vmx"
+    hotplug: "disk,network,usb"
+    bios: ovmf
+    machine: q35

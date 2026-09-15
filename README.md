@@ -116,6 +116,24 @@ in place; `clone`/`pool` are create-only (warned and ignored on update);
 `pvectl get vm NAME -o yaml` round-trips: applying its output reports
 `unchanged`.
 
+### Unmodeled API fields
+
+`spec.raw` passes flat Proxmox API config keys straight through when
+pvectl has no typed field for them yet:
+
+```yaml
+spec:
+  raw:
+    hookscript: "local:snippets/hook.pl"
+    args: "-cpu host,+vmx"
+    bios: ovmf
+```
+
+Values are not validated — a wrong key comes back as a Proxmox API
+error. The declared-keys-only rule still holds: only the keys listed
+under `raw` are compared and updated. Declaring a key pvectl already
+generates from a typed field (`cores`, `scsi0`, `net0`, …) is an error.
+
 ## Manifest reference
 
 See [examples/vm-full.yaml](examples/vm-full.yaml) for every field with

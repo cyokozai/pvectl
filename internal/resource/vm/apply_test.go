@@ -310,6 +310,84 @@ func TestApplyUpdate(t *testing.T) {
 	})
 }
 
+func TestApplyRaw(t *testing.T) {
+	t.Run("raw keys reach the create payload", func(t *testing.T) {
+		f := seededFake()
+		doc := newVMManifest + `
+  raw:
+    hookscript: "local:snippets/hook.pl"
+    bios: ovmf
+`
+		if _, err := apply(t, f, doc, resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Creates) != 1 {
+			t.Fatalf("Creates = %+v", f.Creates)
+		}
+		p := f.Creates[0].Params
+		if p["hookscript"] != "local:snippets/hook.pl" || p["bios"] != "ovmf" {
+			t.Errorf("create params = %+v", p)
+		}
+	})
+
+	t.Run("only declared raw keys are diffed and written", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["bios"] = "seabios"
+		f.Configs[100]["hotplug"] = "disk,network"
+		doc := existingVMManifest + `
+  raw:
+    bios: ovmf
+    hotplug: "disk,network"
+`
+		res, err := apply(t, f, doc, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if res.Action != resource.ActionConfigured {
+			t.Fatalf("Action = %v (diff %+v)", res.Action, res.Diff)
+		}
+		if len(f.Updates) != 1 {
+			t.Fatalf("Updates = %+v", f.Updates)
+		}
+		p := f.Updates[0].Params
+		if p["bios"] != "ovmf" {
+			t.Errorf("params[bios] = %#v, want ovmf", p["bios"])
+		}
+		if _, has := p["hotplug"]; has {
+			t.Error("unchanged raw key must not be in the PUT payload")
+		}
+	})
+
+	t.Run("undeclared live keys stay unmanaged", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["hookscript"] = "local:snippets/other.pl"
+		res, err := apply(t, f, existingVMManifest, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if res.Action != resource.ActionUnchanged {
+			t.Errorf("Action = %v, want unchanged (diff %+v)", res.Action, res.Diff)
+		}
+	})
+
+	t.Run("duplicating a typed key errors", func(t *testing.T) {
+		doc := existingVMManifest + `
+  raw:
+    cores: "8"
+    scsi0: "local-lvm:99"
+`
+		_, err := apply(t, seededFake(), doc, resource.ApplyOptions{})
+		if err == nil {
+			t.Fatal("Apply() error = nil, want raw conflict error")
+		}
+		for _, want := range []string{"spec.raw.cores", "spec.raw.scsi0"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("error %q missing %q", err.Error(), want)
+			}
+		}
+	})
+}
+
 func TestApplyDryRun(t *testing.T) {
 	t.Run("client dry-run makes no API calls", func(t *testing.T) {
 		f := seededFake()
