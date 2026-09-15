@@ -22,7 +22,7 @@ func newStartCmd(f *cliopt.Factory, reg *resource.Registry) *cobra.Command {
 			}
 			starter, ok := h.(resource.Starter)
 			if !ok {
-				return fmt.Errorf("resource type %s does not support start", h.Kind())
+				return fmt.Errorf("resource type %s does not support start", h.GVK().Kind)
 			}
 			client, err := f.Client(cmd.Context())
 			if err != nil {
@@ -52,7 +52,7 @@ func newStopCmd(f *cliopt.Factory, reg *resource.Registry) *cobra.Command {
 			}
 			stopper, ok := h.(resource.Stopper)
 			if !ok {
-				return fmt.Errorf("resource type %s does not support stop", h.Kind())
+				return fmt.Errorf("resource type %s does not support stop", h.GVK().Kind)
 			}
 			client, err := f.Client(cmd.Context())
 			if err != nil {

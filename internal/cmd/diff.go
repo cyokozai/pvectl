@@ -35,7 +35,11 @@ the managed keys that would change. Exit status: 0 no differences,
 				if err != nil {
 					return &ExitError{Code: 2, Err: err}
 				}
-				res, err := h.Diff(cmd.Context(), client, obj)
+				applier, ok := h.(resource.Applier)
+				if !ok {
+					return &ExitError{Code: 2, Err: fmt.Errorf("resource type %s does not support diff", h.GVK().Kind)}
+				}
+				res, err := applier.Diff(cmd.Context(), client, obj)
 				if err != nil {
 					return &ExitError{Code: 2, Err: err}
 				}

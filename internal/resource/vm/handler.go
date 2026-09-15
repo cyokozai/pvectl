@@ -12,6 +12,7 @@ import (
 	"github.com/cyokozai/pvectl/internal/api"
 	"github.com/cyokozai/pvectl/internal/printer"
 	"github.com/cyokozai/pvectl/internal/resource"
+	"github.com/cyokozai/pvectl/internal/runtime"
 )
 
 // Handler implements resource.Handler for VirtualMachine.
@@ -20,6 +21,8 @@ type Handler struct{}
 // Interface guards.
 var (
 	_ resource.Handler = (*Handler)(nil)
+	_ resource.Applier = (*Handler)(nil)
+	_ resource.Deleter = (*Handler)(nil)
 	_ resource.Starter = (*Handler)(nil)
 	_ resource.Stopper = (*Handler)(nil)
 )
@@ -27,11 +30,8 @@ var (
 // NewHandler returns the VirtualMachine handler.
 func NewHandler() *Handler { return &Handler{} }
 
-// Kind implements resource.Handler.
-func (h *Handler) Kind() string { return KindName }
-
-// APIVersion implements resource.Handler.
-func (h *Handler) APIVersion() string { return APIVersion }
+// GVK implements resource.Handler.
+func (h *Handler) GVK() runtime.GVK { return GroupVersionKind }
 
 // Aliases implements resource.Handler.
 func (h *Handler) Aliases() []string {

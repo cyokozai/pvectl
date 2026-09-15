@@ -55,8 +55,12 @@ func seededFake() *apitest.Fake {
 
 func TestHandlerIdentity(t *testing.T) {
 	h := NewHandler()
-	if h.Kind() != "VirtualMachine" || h.APIVersion() != "pve.io/v1alpha1" {
-		t.Errorf("identity = %s/%s", h.APIVersion(), h.Kind())
+	gvk := h.GVK()
+	if gvk.Kind != "VirtualMachine" || gvk.APIVersion() != "pve.io/v1alpha1" {
+		t.Errorf("identity = %s", gvk)
+	}
+	if gvk.Group != "pve.io" || gvk.Version != "v1alpha1" {
+		t.Errorf("GVK() = %#v, want group pve.io version v1alpha1", gvk)
 	}
 	aliases := strings.Join(h.Aliases(), ",")
 	for _, want := range []string{"vm", "vms", "virtualmachine", "virtualmachines"} {

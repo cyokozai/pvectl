@@ -76,7 +76,11 @@ func applyOne(cmd *cobra.Command, reg *resource.Registry, client api.Client, obj
 	if err != nil {
 		return err
 	}
-	res, err := h.Apply(cmd.Context(), client, obj, opts)
+	applier, ok := h.(resource.Applier)
+	if !ok {
+		return fmt.Errorf("resource type %s does not support apply", h.GVK().Kind)
+	}
+	res, err := applier.Apply(cmd.Context(), client, obj, opts)
 	if err != nil {
 		return err
 	}
@@ -109,5 +113,5 @@ func parseDryRun(s string) (resource.ApplyOptions, error) {
 
 // resourceID renders the kubectl-style "virtualmachine/web-server" id.
 func resourceID(h resource.Handler, name string) string {
-	return fmt.Sprintf("%s/%s", strings.ToLower(h.Kind()), name)
+	return fmt.Sprintf("%s/%s", strings.ToLower(h.GVK().Kind), name)
 }

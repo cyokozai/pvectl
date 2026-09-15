@@ -9,9 +9,15 @@ import (
 
 // Manifest type identity.
 const (
-	APIVersion = "pve.io/v1alpha1"
+	Group   = "pve.io"
+	Version = "v1alpha1"
+	// APIVersion is the manifest apiVersion, i.e. Group/Version.
+	APIVersion = Group + "/" + Version
 	KindName   = "VirtualMachine"
 )
+
+// GroupVersionKind is the registry dispatch key for VirtualMachine.
+var GroupVersionKind = runtime.GVK{Group: Group, Version: Version, Kind: KindName}
 
 // Spec is the VirtualMachine manifest spec.
 type Spec struct {

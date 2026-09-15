@@ -11,6 +11,7 @@
 
 - マニフェストは `internal/runtime.Unstructured` として読む。`apiVersion`/`kind`/`metadata` は即時デコード、`spec` は `yaml.Node` のまま遅延し、ハンドラが型付き spec に strict デコード（未知フィールドはエラー）
 - `resource.Handler` インターフェース（Kind/APIVersion/Aliases/Columns/Get/List/Delete/Apply/Diff/Describe）を kind ごとに実装
+  - 2026-09 に ADR-006 で改訂。必須は GVK/Aliases/Columns/Get/List/Describe に絞り、`Apply`/`Diff` は `Applier`、`Delete` は `Deleter` という能力インターフェースへ降格した。`Kind`/`APIVersion` は `GVK()` に統合
 - `start`/`stop` は能力インターフェース（`Starter`/`Stopper`）の type assertion。ライフサイクルを持たない kind（Storage 等）は自然に非対応となる
 - `Registry.Lookup("vm")` がコマンドライン名を、`Registry.ForObject(u)` がマニフェストを解決。新 kind は `Register(handler)` 1 行で全動詞に接続
 - テーブル出力の列定義（`printer.Column`）もハンドラが持つ → printer は完全に kind 非依存
