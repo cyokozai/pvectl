@@ -1,6 +1,6 @@
 module github.com/cyokozai/pvectl
 
-go 1.26.2
+go 1.26.6
 
 require (
 	github.com/Telmate/proxmox-api-go v0.0.0-20260811170036-d21834931666
