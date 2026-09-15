@@ -42,26 +42,13 @@ pvectl has a single maintainer working on it in their own time. There is no guar
 response window, but reports are triaged ahead of feature work. Please allow a reasonable
 period for a fix before disclosing publicly.
 
-## What is in scope
+## What is not pvectl's to fix
 
-- Leaking credentials that pvectl is trusted to hold (config file contents, API tokens,
-  resolved cloud-init passwords) into logs, stdout, stderr, error messages, or files with
-  permissive modes
-- Sending credentials to an unintended host, or accepting a server identity that should
-  have been rejected
-- Manifest input that causes pvectl to write something the manifest did not declare
-- Privilege escalation through pvectl's own file handling (config path, temp files)
-
-## What is not in scope
-
-- Proxmox VE itself. Report those to the [Proxmox security
-  contact](https://www.proxmox.com/en/about/security), not here
-- Behaviour of the Proxmox API that pvectl merely passes through — in particular anything
-  supplied via `spec.raw`, which is forwarded to the API **unvalidated** by design
-  ([ADR-006 §7](docs/adr/ADR-006-api-groups-and-schema.md))
-- A user choosing to store a plaintext secret somewhere pvectl told them not to
-- Missing hardening that the project has explicitly declined — see the non-goals in
-  [ADR-005](docs/adr/ADR-005-purpose-and-non-goals.md)
+Vulnerabilities in **Proxmox VE itself** go to the
+[Proxmox security contact](https://www.proxmox.com/en/about/security), not here. The same
+applies to API behaviour that pvectl merely passes through — in particular anything
+supplied via `spec.raw`, which is forwarded to the API **unvalidated** by design
+([ADR-006 §7](docs/adr/ADR-006-api-groups-and-schema.md)).
 
 ## How pvectl handles secrets
 

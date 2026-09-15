@@ -41,24 +41,13 @@ GitHub の **Private vulnerability reporting** を使う。
 pvectl のメンテナは 1 名で、余暇に作業している。応答期限は保証できないが、脆弱性報告は
 機能開発より先に扱う。公開するまでに修正のための妥当な期間を置いてほしい。
 
-## 対象となるもの
+## pvectl が直すものではないもの
 
-- pvectl が預かっている認証情報（設定ファイルの内容、API トークン、解決済みの
-  cloud-init パスワード）が、ログ・標準出力・標準エラー出力・エラーメッセージ・
-  緩い権限のファイルに漏れること
-- 認証情報を意図しないホストへ送ること、また拒否すべきサーバー同一性を受け入れること
-- マニフェストの入力によって、マニフェストが宣言していないものが書き込まれること
-- pvectl 自身のファイル取り扱い（設定ファイルのパス、一時ファイル）を経由した権限昇格
-
-## 対象にならないもの
-
-- Proxmox VE 自体。これは
-  [Proxmox のセキュリティ窓口](https://www.proxmox.com/en/about/security)へ報告すること
-- pvectl が素通しするだけの Proxmox API の挙動。特に `spec.raw` 経由で渡したものは、
-  設計上 API へ**検証せず**転送される（[ADR-006 §7](docs/adr/ADR-006-api-groups-and-schema.md)）
-- pvectl が「置かないでほしい」と案内している場所に、利用者が自ら平文の秘密を置いた場合
-- プロジェクトが明示的に採用しないと決めた堅牢化。
-  [ADR-005](docs/adr/ADR-005-purpose-and-non-goals.md) の非目標を参照
+**Proxmox VE 自体**の脆弱性は、ここではなく
+[Proxmox のセキュリティ窓口](https://www.proxmox.com/en/about/security)へ報告すること。
+pvectl が素通しするだけの API の挙動も同様である。特に `spec.raw` 経由で渡したものは、
+設計上 API へ**検証せず**転送される
+（[ADR-006 §7](docs/adr/ADR-006-api-groups-and-schema.md)）。
 
 ## pvectl における秘密の取り扱い
 
