@@ -61,14 +61,13 @@ pvectl get vm web-server -o yaml   # round-trips back into apply
 
 | Version | Milestone | Scope |
 |---|---|---|
-| `v0.1.0` | M1 | `VirtualMachine`: idempotent apply, diff, dry-run, clone, cloud-init, lifecycle |
-| `v0.1.x` | M1.5 (current) | `exec` / `migrate` verbs, `spec.raw`, `spec.runStrategy`, `cloudInit.passwordFrom` |
+| `v0.1.0` (next) | M1 + M1.5 | `VirtualMachine`: idempotent apply, diff, dry-run, clone, cloud-init, lifecycle, `exec` / `migrate`, `spec.raw`, `spec.runStrategy`, `cloudInit.passwordFrom` |
 | `v0.2.0` | M2 | LXC containers (`kind: Container`) |
 | `v0.3.0` | M3 | Storage, network, snapshots |
 | `v0.4.*` | M4 | Pools, users, ACL, HA |
-| **`v1.0.0`** | — | M4 complete, tested, feedback addressed, merged to `main` |
+| **`v1.0.0`** | — | M4 complete, tested, feedback addressed — the manifest schema stabilizes and leaves `v1alpha1` |
 
-Development happens on `dev`; **`main` is not updated until `v1.0.0`.** New kinds plug into the same verbs through a resource registry — no new commands.
+Development happens on `dev`; **`main` tracks released versions** — every release merges `dev` into `main` and is tagged there. A `v0.x` release may still break the schema. New kinds plug into the same verbs through a resource registry — no new commands.
 
 ## Contributing
 

@@ -61,14 +61,13 @@ pvectl get vm web-server -o yaml   # そのまま apply に戻せる
 
 | 版 | マイルストーン | スコープ |
 |---|---|---|
-| `v0.1.0` | M1 | `VirtualMachine`: 冪等 apply、diff、dry-run、clone、cloud-init、lifecycle |
-| `v0.1.x` | M1.5（現在） | `exec` / `migrate` 動詞、`spec.raw`、`spec.runStrategy`、`cloudInit.passwordFrom` |
+| `v0.1.0`（次回） | M1 + M1.5 | `VirtualMachine`: 冪等 apply、diff、dry-run、clone、cloud-init、lifecycle、`exec` / `migrate`、`spec.raw`、`spec.runStrategy`、`cloudInit.passwordFrom` |
 | `v0.2.0` | M2 | LXC コンテナ（`kind: Container`） |
 | `v0.3.0` | M3 | ストレージ、ネットワーク、スナップショット |
 | `v0.4.*` | M4 | プール、ユーザー、ACL、HA |
-| **`v1.0.0`** | — | M4 が完成し、テストを行い、フィードバックを反映して `main` にマージされた時点 |
+| **`v1.0.0`** | — | M4 が完成し、テストとフィードバック反映を経て、マニフェストのスキーマが安定し `v1alpha1` を抜ける時点 |
 
-開発は `dev` で進む。**`main` は `v1.0.0` まで更新されない。** 新しい kind はリソースレジストリを通じて同じ動詞に接続される — 新しいコマンドは増えない。
+開発は `dev` で進む。**`main` はリリース済みバージョンを指す** — リリースごとに `dev` を `main` へマージし、タグを打つ。`v0.x` のリリースはスキーマの破壊的変更を含みうる。新しい kind はリソースレジストリを通じて同じ動詞に接続される — 新しいコマンドは増えない。
 
 ## コントリビュート
 

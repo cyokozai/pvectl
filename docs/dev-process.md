@@ -43,7 +43,9 @@ make build       # ldflags 付きビルド
 
 ## 3. ブランチ / コミット
 
-- `main` = リリース可能。作業は短命ブランチ → PR → squash/merge
+- `dev` = 開発の主線。作業は `dev` から切った短命ブランチ → PR → squash/merge で `dev` へ戻す
+- `main` = リリース済み。各リリース（`v0.1.0` / `v0.2.0` / …）ごとに `dev` → `main` の PR を
+  マージし、`main` 上でタグを打つ
 - コミットは Conventional Commits + gitmoji（`.gitmessage` 参照、日本語可）
 - git 操作（add/commit/push）は人間が実行する
 

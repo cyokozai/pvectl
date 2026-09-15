@@ -51,20 +51,28 @@ kubectl ユーザーにとって馴染みのある「宣言的マニフェスト
 | マイルストーン | スコープ | リリース条件 |
 |---|---|---|
 | **M1** | `VirtualMachine`（qemu）完全対応: 冪等 apply / diff / dry-run / clone+再設定 / cloud-init / disk resize / lifecycle | 回帰チェックリスト全通過・CI green・docs 完備 → `v0.1.0` |
-| **M1.5**（現在） | M1 の後に入った追補: `exec` / `migrate` 動詞、`spec.raw`（ADR-006 §7）、`spec.runStrategy`、`cloudInit.passwordFrom`（いずれも ADR-005） | 同上 → `v0.1.x` |
+| **M1.5**（現在） | M1 の後に入った追補: `exec` / `migrate` 動詞、`spec.raw`（ADR-006 §7）、`spec.runStrategy`、`cloudInit.passwordFrom`（いずれも ADR-005） | M1 と同時に `v0.1.0` としてリリース |
 | M2 | `Container`（LXC）: `FindGuest` の一般化、`ostemplate`/`rootfs`/`mountPoints` | 同上 → `v0.2.0` |
 | M3 | `Storage` / `Network`（pending+reload モデル）/ `Snapshot`（動詞主体） | `v0.3.0` |
 | M4 | `Pool` / `User`(+token) / `ACL`（set 調停）/ `HA` | `v0.4.*` |
-| **v1.0.0** | M4 が完成し、テストを行い、フィードバックの内容を十分反映した状態 | 上記すべて + `main` へのマージ → `v1.0.0` |
+| **v1.0.0** | M4 が完成し、テストを行い、フィードバックの内容を十分反映した状態 | 上記すべて + マニフェストのスキーマ安定（`v1alpha1` → `v1`）→ `v1.0.0` |
 
 新しい kind は `resource.Handler` を実装して `Register()` する 1 行で全動詞に接続される（ADR-001）。
 
 ### バージョンと分岐の関係
 
-- 開発は `dev` で進む。**`main` は v1.0.0 まで更新されない**
-- `v0.x` は `v1alpha1` スキーマの期間であり、破壊的変更を伴う（実施済み: `spec.startOnBoot` →
-  `spec.runStrategy`、`spec.cloudInit.password` → `spec.cloudInit.passwordFrom`）
-- M1.5 のように既存マイルストーンへの追補は patch（`v0.1.1`, `v0.1.2`, …）で出す
+- 開発は `dev` で進む
+- **`main` はリリース済みバージョンを指す。** 各リリース（`v0.1.0` / `v0.2.0` / …）ごとに
+  `dev` → `main` の PR をマージし、`main` 上でタグを打つ
+- `v0.x` は `v1alpha1` スキーマの期間であり、破壊的変更を許容する（実施済み:
+  `spec.startOnBoot` → `spec.runStrategy`、`spec.cloudInit.password` →
+  `spec.cloudInit.passwordFrom`）
+- **`v1.0.0` は「マニフェストのスキーマが安定し `v1alpha1` を抜ける時点」である。** M4 の完成・
+  テスト・フィードバック反映がその前提条件であり、`main` への初回マージを意味するのではない
+- 既存マイルストーンへのバグ修正は patch（`v0.1.1`, `v0.1.2`, …）で出す
+
+最初のリリースは **`v0.1.0`**（M1 + M1.5）で、`VirtualMachine` の宣言的管理、`exec` /
+`migrate`、`spec.raw`、`spec.runStrategy`、`cloudInit.passwordFrom` を含む。
 
 ## 5. アーキテクチャ
 
