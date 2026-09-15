@@ -57,10 +57,38 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the Makefile's `git describe` can resolve a real
+          # version instead of falling back to the bare commit.
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - name: go build
-        run: go build -o pvectl ./cmd/pvectl
+        # HOST=1 keeps the Makefile off `docker compose exec`, so CI exercises
+        # the same LDFLAGS injection a local `make build` does.
+        run: make build HOST=1
       - name: smoke test
         run: ./pvectl version
+
+  cross-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # One runner covers every target: CGO is off, so four `go build`
+      # invocations are much cheaper than four runners. The platform list
+      # lives in the Makefile (PLATFORMS) next to the LDFLAGS they share.
+      - name: cross-compile every platform
+        run: make cross-build HOST=1
+      - name: inspect artifacts
+        run: |
+          ls -l dist/
+          file dist/*
+      # Only the runner's own platform can actually be executed, so the
+      # `pvectl version` smoke test stays in the `build` job.
