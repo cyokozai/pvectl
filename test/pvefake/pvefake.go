@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -42,6 +43,8 @@ type Server struct {
 
 	taskSeq     int
 	taskResults map[string]string // upid -> exitstatus
+
+	requests []string // "METHOD /path", in arrival order
 }
 
 // New starts a fake server. Call Close when done.
@@ -113,9 +116,29 @@ var (
 	rxStatus = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/(qemu|lxc)/(\d+)/status/(start|stop)$`)
 	rxCreate = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/(qemu|lxc)$`)
 	rxTask   = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/tasks/([^/]+)/status$`)
+	rxResize = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/(qemu|lxc)/(\d+)/resize$`)
+	// rxDiskKey matches the config keys that carry a disk volume.
+	rxDiskKey = regexp.MustCompile(`^(scsi|virtio|sata|ide)\d+$`)
 )
 
+// Requests returns every request the fake handled, as "METHOD /path",
+// so a test can assert which endpoint a code path actually reached.
+func (s *Server) Requests() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.requests...)
+}
+
+// SawRequest reports whether any handled request matches "METHOD /path".
+func (s *Server) SawRequest(method, path string) bool {
+	return slices.Contains(s.Requests(), method+" "+path)
+}
+
 func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	s.requests = append(s.requests, r.Method+" "+r.URL.Path)
+	s.mu.Unlock()
+
 	if r.URL.Path == "/api2/json/access/ticket" && r.Method == http.MethodPost {
 		s.handleTicket(w, r)
 		return
@@ -138,6 +161,8 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		s.handleTaskStatus(w, r)
 	case rxConfig.MatchString(path):
 		s.handleConfig(w, r)
+	case rxResize.MatchString(path) && r.Method == http.MethodPut:
+		s.handleResize(w, r)
 	case rxClone.MatchString(path) && r.Method == http.MethodPost:
 		s.handleClone(w, r)
 	case rxStatus.MatchString(path) && r.Method == http.MethodPost:
@@ -232,6 +257,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			for k, v := range params {
 				g.Config[k] = v
 			}
+			materializeDisks(vmid, g.Config)
 			if name, has := params["name"]; has {
 				g.Name = fmt.Sprintf("%v", name)
 			}
@@ -270,6 +296,7 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 			config[k] = v
 		}
 	}
+	materializeDisks(vmid, config)
 	s.guests[vmid] = &Guest{
 		VMID:   vmid,
 		Name:   fmt.Sprintf("%v", params["name"]),
@@ -371,6 +398,41 @@ func (s *Server) handleLifecycle(w http.ResponseWriter, r *http.Request) {
 	s.finishTask(w, m[1], op)
 }
 
+func (s *Server) handleResize(w http.ResponseWriter, r *http.Request) {
+	m := rxResize.FindStringSubmatch(r.URL.Path)
+	vmid, _ := strconv.Atoi(m[3])
+	params := formParams(r)
+	disk := fmt.Sprintf("%v", params["disk"])
+	size := fmt.Sprintf("%v", params["size"])
+
+	s.mu.Lock()
+	g, ok := s.guests[vmid]
+	var failure string
+	switch {
+	case !ok:
+		failure = "does not exist"
+	default:
+		current, has := g.Config[disk]
+		if !has {
+			failure = fmt.Sprintf("disk '%s' does not exist", disk)
+			break
+		}
+		resized, err := resizeDiskValue(fmt.Sprintf("%v", current), size)
+		if err != nil {
+			failure = err.Error()
+			break
+		}
+		g.Config[disk] = resized
+	}
+	s.mu.Unlock()
+
+	if failure != "" {
+		http.Error(w, failure, http.StatusInternalServerError)
+		return
+	}
+	s.finishTask(w, m[1], "resize")
+}
+
 func (s *Server) handleTaskStatus(w http.ResponseWriter, r *http.Request) {
 	m := rxTask.FindStringSubmatch(r.URL.Path)
 	upid := m[2]
@@ -399,6 +461,108 @@ func (s *Server) finishTask(w http.ResponseWriter, node, op string) {
 	s.taskResults[upid] = exit
 	s.mu.Unlock()
 	writeData(w, upid)
+}
+
+// materializeDisks rewrites the allocation form a manifest sends
+// ("local-lvm:16,discard=on") into the volume form Proxmox VE stores and
+// reads back ("local-lvm:vm-200-disk-0,discard=on,size=16G"). Without
+// this the fake would echo the request verbatim and resize would have no
+// "size=" to grow.
+func materializeDisks(vmid int, config map[string]any) {
+	for key, raw := range config {
+		if !rxDiskKey.MatchString(key) {
+			continue
+		}
+		value := fmt.Sprintf("%v", raw)
+		head, opts, _ := strings.Cut(value, ",")
+		storage, request, ok := strings.Cut(head, ":")
+		if !ok {
+			continue
+		}
+		gigabytes, err := strconv.ParseFloat(request, 64)
+		if err != nil {
+			continue // already a volume name
+		}
+		slot := strings.TrimLeft(key, "abcdefghijklmnopqrstuvwxyz")
+		rebuilt := fmt.Sprintf("%s:vm-%d-disk-%s", storage, vmid, slot)
+		if opts != "" {
+			rebuilt += "," + opts
+		}
+		config[key] = rebuilt + fmt.Sprintf(",size=%sG", strconv.FormatFloat(gigabytes, 'f', -1, 64))
+	}
+}
+
+// resizeDiskValue applies a /resize request to a stored disk value.
+// A leading "+" grows the disk, anything else sets it outright; Proxmox
+// VE refuses to shrink, and so does this.
+func resizeDiskValue(value, size string) (string, error) {
+	if size == "" {
+		return "", fmt.Errorf("missing parameter 'size'")
+	}
+	parts := strings.Split(value, ",")
+	currentIdx := -1
+	var current int64
+	for i, part := range parts {
+		if raw, ok := strings.CutPrefix(part, "size="); ok {
+			currentIdx = i
+			current = sizeBytes(raw)
+		}
+	}
+	if currentIdx < 0 {
+		return "", fmt.Errorf("disk has no size to resize")
+	}
+
+	wanted := sizeBytes(strings.TrimPrefix(size, "+"))
+	if wanted <= 0 {
+		return "", fmt.Errorf("unable to parse size '%s'", size)
+	}
+	if strings.HasPrefix(size, "+") {
+		wanted += current
+	}
+	if wanted < current {
+		return "", fmt.Errorf("shrinking disks is not supported")
+	}
+
+	parts[currentIdx] = "size=" + sizeString(wanted)
+	return strings.Join(parts, ","), nil
+}
+
+// sizeBytes converts "32G"/"512M"/"32" (GB) to bytes; 0 on nonsense.
+func sizeBytes(s string) int64 {
+	s = strings.ToUpper(strings.TrimSpace(s))
+	mult := int64(1) << 30 // a bare number means GB
+	if len(s) > 0 {
+		switch s[len(s)-1] {
+		case 'K':
+			mult, s = 1<<10, s[:len(s)-1]
+		case 'M':
+			mult, s = 1<<20, s[:len(s)-1]
+		case 'G':
+			mult, s = 1<<30, s[:len(s)-1]
+		case 'T':
+			mult, s = 1<<40, s[:len(s)-1]
+		}
+	}
+	value, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0
+	}
+	return int64(value * float64(mult))
+}
+
+// sizeString renders bytes the way Proxmox VE writes them back, using
+// the largest unit that divides evenly.
+func sizeString(bytes int64) string {
+	units := []struct {
+		suffix string
+		size   int64
+	}{{"T", 1 << 40}, {"G", 1 << 30}, {"M", 1 << 20}, {"K", 1 << 10}}
+	for _, u := range units {
+		if bytes%u.size == 0 {
+			return strconv.FormatInt(bytes/u.size, 10) + u.suffix
+		}
+	}
+	return strconv.FormatInt(bytes, 10)
 }
 
 func formParams(r *http.Request) map[string]any {
