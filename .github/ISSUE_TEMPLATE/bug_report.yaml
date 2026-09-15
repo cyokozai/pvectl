@@ -1,0 +1,159 @@
+name: バグ報告
+description: 「本来できるはずのこと」ができない・表示や動きがおかしいときはこちら
+title: "[バグ] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### どちらを選べばよいか迷ったら
+
+        - **バグ報告**（このテンプレート） … 本来できるはずのことができない、表示や動きがおかしい
+        - **新機能・改良要望** … 今はできないことを、できるようにしてほしい
+
+        迷ったらこのままバグ報告で構いません。こちらで振り分けます。
+
+        なお、**脆弱性は public issue に書かないでください**。
+        [SECURITY.jp.md](https://github.com/cyokozai/pvectl/blob/main/SECURITY.jp.md) の手順をご覧ください。
+
+  - type: checkboxes
+    id: declared-keys
+    attributes:
+      label: ひとつだけ確認させてください
+      description: |
+        pvectl は「マニフェストに宣言したキーだけ」を管理します。そのため
+        **マニフェストから消したフィールドは、サーバー側の元の値に戻りません**。
+        これは不具合ではなく仕様です（[ADR-005](https://github.com/cyokozai/pvectl/blob/main/docs/adr/ADR-005-purpose-and-non-goals.md)）。
+      options:
+        - label: 報告したいのは、この仕様とは別の話です
+          required: true
+
+  - type: dropdown
+    id: target-feature
+    attributes:
+      label: どの機能で起きましたか
+      description: いちばん近いものを選んでください。
+      options:
+        - get / describe（表示系）
+        - apply / diff（宣言的な適用）
+        - delete
+        - start / stop（電源操作）
+        - exec（ゲスト内コマンド実行）
+        - migrate（ノード間移動）
+        - config（設定・コンテキスト）
+        - completion / version
+        - マニフェスト（spec）の書き方
+        - わからない・全体のこと
+    validations:
+      required: true
+
+  - type: textarea
+    id: happened
+    attributes:
+      label: 起きたこと
+      description: 何が起きたかを、そのまま書いてください。
+      placeholder: apply したら「unchanged」と出たが、実際には設定が反映されていなかった
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 本来どうなるはずだと思いましたか
+      placeholder: マニフェストに書いた memory の値が VM に反映され、「configured」と出ると思っていた
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 同じことが起きるまでの手順
+      description: 実行したコマンドを順番に書いてください。途中で出たメッセージがあれば、それも添えてください。
+      placeholder: |
+        1. pvectl apply -f vm.yaml
+        2. pvectl get vm web-01 -o yaml
+        3. pvectl diff -f vm.yaml
+    validations:
+      required: true
+
+  - type: textarea
+    id: manifest
+    attributes:
+      label: 使っていたマニフェスト
+      description: |
+        `apply` / `diff` / `delete` で起きた場合は、ぜひ貼ってください。調査がぐっと速くなります。
+
+        **パスワード・API トークン・ホスト名などは削除してから貼ってください。**
+        `cloudInit.passwordFrom` は参照の文字列（`env:…` / `file:…`）だけで十分です。
+
+        例:
+
+        ```yaml
+        apiVersion: pve.io/v1alpha1
+        kind: VirtualMachine
+        metadata:
+          name: web-01
+        spec:
+          targetNode: pve1
+          resources:
+            cpu:
+              cores: 2
+            memory: 2048
+        ```
+      render: yaml
+    validations:
+      required: false
+
+  - type: input
+    id: pvectl-version
+    attributes:
+      label: pvectl のバージョン
+      description: "`pvectl version` の出力を貼ってください。"
+      placeholder: pvectl version v0.1.0 (commit abc1234)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: 頻度
+      options:
+        - 毎回
+        - ときどき
+        - 一度だけ
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: 作業への影響
+      options:
+        - 作業が止まる
+        - 回避策はあるが手間
+        - 軽微
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: ターミナルの出力やスクリーンショット（任意）
+      description: エラーメッセージ、終了コード、`diff` の出力などがあれば貼ってください。
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 発生日時・環境（任意）
+      description: |
+        分かる範囲で構いません。Proxmox VE のバージョン（Web UI のフッタ、または `pveversion` の出力）、
+        pvectl を動かした OS、発生した日時など。
+      placeholder: |
+        Proxmox VE: pve-manager/8.2.4 (kernel 6.8.8-2-pve)
+        OS: macOS 15.6 arm64
+        発生日時: 2026-09-16 10:30 ごろ
+    validations:
+      required: false

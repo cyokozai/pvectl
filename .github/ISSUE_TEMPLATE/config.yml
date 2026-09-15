@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 質問・使い方の相談
+    url: https://github.com/cyokozai/pvectl/discussions
+    about: 「バグなのか使い方の問題なのか分からない」段階の話はこちらへ。切り分けが済んでから issue を立てても構いません。
+  - name: 脆弱性の報告
+    url: https://github.com/cyokozai/pvectl/security/advisories/new
+    about: セキュリティ上の問題は public issue に書かないでください。GitHub の Private vulnerability reporting を使ってください。
+  - name: 貢献の手引き
+    url: https://github.com/cyokozai/pvectl/blob/main/CONTRIBUTING.jp.md
+    about: 受け入れる変更・受け入れない変更の基準、開発環境、新しいリソース種別の追加手順。
