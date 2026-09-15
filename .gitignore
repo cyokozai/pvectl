@@ -13,6 +13,9 @@
 *.dylib
 app/tmp/*
 
+# Cross-build output (`make cross-build`)
+/dist/
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -56,6 +59,3 @@ go.work
 /main
 
 /pvectl
-
-# Cross-build output (`make cross-build`)
-/dist/
