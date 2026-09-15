@@ -64,24 +64,25 @@ pvectl get vm web-server -o yaml   # round-trips back into apply
 
 ## Roadmap
 
-| Milestone | Scope |
-|-----------|-------|
-| **M1 (current)** | VirtualMachine: idempotent apply, diff, dry-run, clone, cloud-init, lifecycle |
-| M2 | LXC containers (`kind: Container`) |
-| M3 | Storage, network, snapshots |
-| M4 | Pools, users, ACL, HA |
+Development happens on `dev`; **`main` is not updated until `v1.0.0`.**
+
+| Version | Milestone | Scope |
+|---|---|---|
+| `v0.1.0` | M1 | `VirtualMachine`: idempotent apply, diff, dry-run, clone, cloud-init, lifecycle |
+| `v0.1.x` | M1.5 (current) | `exec` / `migrate` verbs, `spec.raw`, `spec.runStrategy`, `cloudInit.passwordFrom` |
+| `v0.2.0` | M2 | LXC containers (`kind: Container`) |
+| `v0.3.0` | M3 | Storage, network, snapshots |
+| `v0.4.*` | M4 | Pools, users, ACL, HA |
+| **`v1.0.0`** | — | M4 complete, tested, feedback addressed, merged to `main` |
 
 New kinds plug into the same verbs through a resource registry — no new commands.
 
 ## Development
 
-Builds, tests and lint run in a container; the tests drive an in-memory fake
-Proxmox VE API ([test/pvefake](test/pvefake)), so no cluster is needed. More in
-[quick-start/development](docs/quick-start/development.md) and [docs/dev-process.md](docs/dev-process.md).
-
-```bash
-make dev-up && make check
-```
+`make dev-up && make check` runs vet, lint and race tests in a container,
+against an in-memory fake Proxmox VE API ([test/pvefake](test/pvefake)) — no
+cluster needed. Details in [quick-start/development](docs/quick-start/development.md)
+and [docs/dev-process.md](docs/dev-process.md).
 
 ## License
 
