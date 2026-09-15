@@ -2,6 +2,7 @@ package vm
 
 import (
 	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -24,13 +25,15 @@ func fullSpec() *Spec {
 			{Name: "net0", Bridge: "vmbr0", Model: "virtio", Tag: 100},
 		},
 		CloudInit: &CloudInit{
-			User:       "admin",
-			Password:   "s3cret",
-			SSHKeys:    []string{"ssh-ed25519 AAAA test@example"},
-			IPConfig:   "ip=10.0.0.5/24,gw=10.0.0.1",
-			Nameserver: "1.1.1.1",
+			User: "admin",
+			// The converters see the resolved value, never the reference.
+			PasswordFrom:     "env:PVECTL_TEST_CI_PASSWORD",
+			resolvedPassword: "s3cret",
+			SSHKeys:          []string{"ssh-ed25519 AAAA test@example"},
+			IPConfig:         "ip=10.0.0.5/24,gw=10.0.0.1",
+			Nameserver:       "1.1.1.1",
 		},
-		StartOnBoot: true,
+		RunStrategy: RunStrategyAlways,
 		Tags:        []string{"web", "prod"},
 		Description: "test vm",
 	}
@@ -155,6 +158,36 @@ func TestConfigParams(t *testing.T) {
 		if params[k] != v {
 			t.Errorf("configParams[%q] = %#v, want %#v", k, params[k], v)
 		}
+	}
+}
+
+func TestRawIsMergedIntoEveryParamMap(t *testing.T) {
+	spec := fullSpec()
+	spec.Raw = map[string]string{"hookscript": "local:snippets/hook.pl", "args": "-cpu host,+vmx"}
+
+	for label, params := range map[string]map[string]any{
+		"createParams":  createParams("web-server", spec),
+		"configParams":  configParams("web-server", spec),
+		"desiredParams": desiredParams("web-server", spec),
+	} {
+		if params["hookscript"] != "local:snippets/hook.pl" || params["args"] != "-cpu host,+vmx" {
+			t.Errorf("%s dropped raw keys: %+v", label, params)
+		}
+	}
+
+	// cloneParams takes clone endpoint keys only — raw belongs to config.
+	if _, has := cloneParams("web-server", spec, 105)["hookscript"]; has {
+		t.Error("cloneParams must not carry raw config keys")
+	}
+}
+
+func TestRawConflicts(t *testing.T) {
+	spec := fullSpec()
+	spec.Raw = map[string]string{"hookscript": "x", "cores": "8", "net0": "virtio", "scsi0": "local-lvm:1", "ide2": "local-lvm:cloudinit"}
+
+	got := strings.Join(rawConflicts("web-server", spec), ",")
+	if got != "cores,ide2,net0,scsi0" {
+		t.Errorf("rawConflicts = %q, want cores,ide2,net0,scsi0", got)
 	}
 }
 

@@ -194,6 +194,38 @@ func TestApplyLifecycleRoundTrip(t *testing.T) {
 	}
 }
 
+// TestRunStrategyConverges proves apply moves the power state, not just
+// the config: Always starts a stopped VM, Halted stops it again.
+func TestRunStrategyConverges(t *testing.T) {
+	e := newEnv(t)
+	write := func(strategy string) string {
+		path := filepath.Join(t.TempDir(), "vm.yaml")
+		doc := fmt.Sprintf(manifestTemplate, 2, 1024) + "  runStrategy: " + strategy + "\n"
+		if err := os.WriteFile(path, []byte(doc), 0600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	if _, stderr, err := e.run(t, "apply", "-f", write("Always")); err != nil {
+		t.Fatalf("apply(Always): %v\nstderr: %s", err, stderr)
+	}
+	if g := e.server.Guest(200); g == nil || g.Status != "running" || g.Config["onboot"] != "1" {
+		t.Fatalf("guest after Always = %+v, want running with onboot=1", g)
+	}
+
+	stdout, stderr, err := e.run(t, "apply", "-f", write("Halted"))
+	if err != nil {
+		t.Fatalf("apply(Halted): %v\nstderr: %s", err, stderr)
+	}
+	if !strings.Contains(stdout, "virtualmachine/e2e-vm configured") {
+		t.Fatalf("stdout = %q", stdout)
+	}
+	if g := e.server.Guest(200); g.Status != "stopped" || g.Config["onboot"] != "0" {
+		t.Fatalf("guest after Halted = %+v, want stopped with onboot=0", g)
+	}
+}
+
 // TestCloneFlow covers clone-based creation with post-clone
 // reconfiguration through the real client.
 func TestCloneFlow(t *testing.T) {

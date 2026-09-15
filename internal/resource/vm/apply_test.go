@@ -2,6 +2,8 @@ package vm
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -75,7 +77,7 @@ spec:
       - ssh-ed25519 AAAA test@example
     ipConfig: ip=10.0.0.5/24,gw=10.0.0.1
     nameserver: 1.1.1.1
-  startOnBoot: true
+  runStrategy: Always
   tags: [web, prod]
 `
 
@@ -168,7 +170,7 @@ spec:
 		}
 	})
 
-	t.Run("declared disks are warned about and ignored", func(t *testing.T) {
+	t.Run("declared disks are an error, not a warning", func(t *testing.T) {
 		f := seededFake()
 		doc := cloneManifest + `
   disks:
@@ -176,15 +178,12 @@ spec:
       size: 64G
       storage: local-lvm
 `
-		res, err := apply(t, f, doc, resource.ApplyOptions{})
-		if err != nil {
-			t.Fatalf("Apply() error = %v", err)
+		_, err := apply(t, f, doc, resource.ApplyOptions{})
+		if err == nil || !strings.Contains(err.Error(), "spec.disks") || !strings.Contains(err.Error(), "spec.clone") {
+			t.Fatalf("Apply() error = %v, want a clone/disks exclusivity error", err)
 		}
-		if len(res.Warnings) == 0 || !strings.Contains(strings.Join(res.Warnings, " "), "disk") {
-			t.Errorf("Warnings = %+v, want disk warning", res.Warnings)
-		}
-		if _, has := f.Clones[0].Params["scsi0"]; has {
-			t.Error("clone params must not contain disks")
+		if len(f.Clones) != 0 {
+			t.Error("nothing must be created when the manifest is rejected")
 		}
 	})
 
@@ -297,15 +296,335 @@ func TestApplyUpdate(t *testing.T) {
 		}
 	})
 
-	t.Run("create-only fields warn on update", func(t *testing.T) {
+	t.Run("a pool the VM is not in errors instead of being ignored", func(t *testing.T) {
 		f := seededFake()
+		doc := strings.Replace(existingVMManifest, "vmid: 100", "vmid: 100\n  pool: some-pool", 1)
+		_, err := apply(t, f, doc, resource.ApplyOptions{})
+		if err == nil || !strings.Contains(err.Error(), "spec.pool") {
+			t.Fatalf("Apply() error = %v, want a create-only pool error", err)
+		}
+		if len(f.Updates) != 0 {
+			t.Error("nothing must be written when a create-only field disagrees with live")
+		}
+	})
+
+	t.Run("a pool the VM is already in is accepted", func(t *testing.T) {
+		f := seededFake()
+		f.GuestList[0].Pool = "some-pool"
 		doc := strings.Replace(existingVMManifest, "vmid: 100", "vmid: 100\n  pool: some-pool", 1)
 		res, err := apply(t, f, doc, resource.ApplyOptions{})
 		if err != nil {
 			t.Fatalf("Apply() error = %v", err)
 		}
-		if len(res.Warnings) == 0 || !strings.Contains(strings.Join(res.Warnings, " "), "pool") {
-			t.Errorf("Warnings = %+v, want pool warning", res.Warnings)
+		if res.Action != resource.ActionUnchanged {
+			t.Errorf("Action = %v, want unchanged (diff %+v)", res.Action, res.Diff)
+		}
+	})
+
+	t.Run("clone provenance is neither warned about nor re-executed", func(t *testing.T) {
+		// A cloned VM's steady-state manifest keeps declaring where it
+		// came from; re-applying it must be a no-op.
+		f := seededFake()
+		doc := `
+apiVersion: pve.io/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: db
+spec:
+  targetNode: pve2
+  vmid: 101
+  clone: some-template
+  fullClone: true
+  resources:
+    cpu:
+      cores: 4
+    memory: 4096
+`
+		res, err := apply(t, f, doc, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if res.Action != resource.ActionUnchanged || len(res.Warnings) != 0 {
+			t.Errorf("result = %+v, want unchanged with no warnings", res)
+		}
+		if len(f.Clones) != 0 {
+			t.Error("an existing VM must never be re-cloned")
+		}
+	})
+}
+
+func TestApplyRaw(t *testing.T) {
+	t.Run("raw keys reach the create payload", func(t *testing.T) {
+		f := seededFake()
+		doc := newVMManifest + `
+  raw:
+    hookscript: "local:snippets/hook.pl"
+    bios: ovmf
+`
+		if _, err := apply(t, f, doc, resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Creates) != 1 {
+			t.Fatalf("Creates = %+v", f.Creates)
+		}
+		p := f.Creates[0].Params
+		if p["hookscript"] != "local:snippets/hook.pl" || p["bios"] != "ovmf" {
+			t.Errorf("create params = %+v", p)
+		}
+	})
+
+	t.Run("only declared raw keys are diffed and written", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["bios"] = "seabios"
+		f.Configs[100]["hotplug"] = "disk,network"
+		doc := existingVMManifest + `
+  raw:
+    bios: ovmf
+    hotplug: "disk,network"
+`
+		res, err := apply(t, f, doc, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if res.Action != resource.ActionConfigured {
+			t.Fatalf("Action = %v (diff %+v)", res.Action, res.Diff)
+		}
+		if len(f.Updates) != 1 {
+			t.Fatalf("Updates = %+v", f.Updates)
+		}
+		p := f.Updates[0].Params
+		if p["bios"] != "ovmf" {
+			t.Errorf("params[bios] = %#v, want ovmf", p["bios"])
+		}
+		if _, has := p["hotplug"]; has {
+			t.Error("unchanged raw key must not be in the PUT payload")
+		}
+	})
+
+	t.Run("undeclared live keys stay unmanaged", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["hookscript"] = "local:snippets/other.pl"
+		res, err := apply(t, f, existingVMManifest, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if res.Action != resource.ActionUnchanged {
+			t.Errorf("Action = %v, want unchanged (diff %+v)", res.Action, res.Diff)
+		}
+	})
+
+	t.Run("duplicating a typed key errors", func(t *testing.T) {
+		doc := existingVMManifest + `
+  raw:
+    cores: "8"
+    scsi0: "local-lvm:99"
+`
+		_, err := apply(t, seededFake(), doc, resource.ApplyOptions{})
+		if err == nil {
+			t.Fatal("Apply() error = nil, want raw conflict error")
+		}
+		for _, want := range []string{"spec.raw.cores", "spec.raw.scsi0"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("error %q missing %q", err.Error(), want)
+			}
+		}
+	})
+}
+
+func TestApplyRunStrategy(t *testing.T) {
+	// existingVMManifest declares Always and vmid 100, which seededFake
+	// reports as already running.
+	halted := strings.Replace(existingVMManifest, "runStrategy: Always", "runStrategy: Halted", 1)
+	manual := strings.Replace(existingVMManifest, "runStrategy: Always", "runStrategy: Manual", 1)
+	undeclared := strings.Replace(existingVMManifest, "  runStrategy: Always\n", "", 1)
+
+	t.Run("Always starts a stopped VM", func(t *testing.T) {
+		f := seededFake()
+		f.GuestList[0].Status = "stopped"
+		res, err := apply(t, f, existingVMManifest, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Starts) != 1 || f.Starts[0].VMID != 100 {
+			t.Fatalf("Starts = %+v, want one start of vmid 100", f.Starts)
+		}
+		// A power transition is a change even when the config matched.
+		if res.Action != resource.ActionConfigured {
+			t.Errorf("Action = %v, want configured", res.Action)
+		}
+	})
+
+	t.Run("Always leaves a running VM alone", func(t *testing.T) {
+		f := seededFake()
+		res, err := apply(t, f, existingVMManifest, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Starts) != 0 || res.Action != resource.ActionUnchanged {
+			t.Errorf("Starts = %+v, Action = %v", f.Starts, res.Action)
+		}
+	})
+
+	t.Run("Halted stops a running VM and sets onboot=0", func(t *testing.T) {
+		f := seededFake()
+		res, err := apply(t, f, halted, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Stops) != 1 || f.Stops[0].VMID != 100 {
+			t.Fatalf("Stops = %+v, want one stop of vmid 100", f.Stops)
+		}
+		if len(f.Updates) != 1 || f.Updates[0].Params["onboot"] != 0 {
+			t.Errorf("Updates = %+v, want onboot=0", f.Updates)
+		}
+		if res.Action != resource.ActionConfigured {
+			t.Errorf("Action = %v", res.Action)
+		}
+	})
+
+	t.Run("Manual never touches the power state", func(t *testing.T) {
+		for label, doc := range map[string]string{"explicit": manual, "omitted": undeclared} {
+			f := seededFake()
+			res, err := apply(t, f, doc, resource.ApplyOptions{})
+			if err != nil {
+				t.Fatalf("%s: Apply() error = %v", label, err)
+			}
+			if len(f.Starts)+len(f.Stops) != 0 {
+				t.Errorf("%s: power calls = %+v %+v", label, f.Starts, f.Stops)
+			}
+			// onboot stays unmanaged: live has onboot=1 and the manifest
+			// does not declare it, so it is not a diff.
+			if res.Action != resource.ActionUnchanged {
+				t.Errorf("%s: Action = %v, want unchanged (diff %+v)", label, res.Action, res.Diff)
+			}
+		}
+	})
+
+	t.Run("Always starts a freshly created VM", func(t *testing.T) {
+		f := seededFake()
+		doc := newVMManifest + "  runStrategy: Always\n"
+		if _, err := apply(t, f, doc, resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Starts) != 1 || f.Starts[0].VMID != 105 {
+			t.Errorf("Starts = %+v, want the new vmid started", f.Starts)
+		}
+		if f.Creates[0].Params["onboot"] != 1 {
+			t.Errorf("create params onboot = %#v", f.Creates[0].Params["onboot"])
+		}
+	})
+
+	t.Run("server dry-run reports the transition without performing it", func(t *testing.T) {
+		f := seededFake()
+		res, err := apply(t, f, halted, resource.ApplyOptions{DryRun: resource.DryRunServer})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if res.Action != resource.ActionConfigured {
+			t.Errorf("Action = %v", res.Action)
+		}
+		if len(f.Stops) != 0 {
+			t.Error("server dry-run must not change the power state")
+		}
+	})
+
+	t.Run("invalid value errors", func(t *testing.T) {
+		doc := strings.Replace(existingVMManifest, "runStrategy: Always", "runStrategy: RunOnce", 1)
+		_, err := apply(t, seededFake(), doc, resource.ApplyOptions{})
+		if err == nil || !strings.Contains(err.Error(), "spec.runStrategy") {
+			t.Fatalf("Apply() error = %v, want runStrategy validation error", err)
+		}
+	})
+
+	t.Run("the removed startOnBoot field points at runStrategy", func(t *testing.T) {
+		doc := strings.Replace(existingVMManifest, "runStrategy: Always", "startOnBoot: true", 1)
+		_, err := apply(t, seededFake(), doc, resource.ApplyOptions{})
+		if err == nil || !strings.Contains(err.Error(), "runStrategy") {
+			t.Fatalf("Apply() error = %v, want a hint naming runStrategy", err)
+		}
+	})
+}
+
+func TestApplyPasswordFrom(t *testing.T) {
+	withPassword := func(ref string) string {
+		return strings.Replace(newVMManifest, "  disks:",
+			"  cloudInit:\n    user: admin\n    passwordFrom: "+ref+"\n  disks:", 1)
+	}
+
+	t.Run("env reference reaches cipassword on create", func(t *testing.T) {
+		t.Setenv("PVECTL_TEST_VM_PASSWORD", "s3cret")
+		f := seededFake()
+		if _, err := apply(t, f, withPassword("env:PVECTL_TEST_VM_PASSWORD"), resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if got := f.Creates[0].Params["cipassword"]; got != "s3cret" {
+			t.Errorf("cipassword = %#v, want the resolved value", got)
+		}
+	})
+
+	t.Run("file reference reaches cipassword on create", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "vmpw")
+		if err := os.WriteFile(path, []byte("from-file\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		f := seededFake()
+		if _, err := apply(t, f, withPassword("file:"+path), resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if got := f.Creates[0].Params["cipassword"]; got != "from-file" {
+			t.Errorf("cipassword = %#v, want the file contents without the newline", got)
+		}
+	})
+
+	t.Run("unresolvable reference errors on a real apply", func(t *testing.T) {
+		_, err := apply(t, seededFake(), withPassword("env:PVECTL_TEST_VM_MISSING"), resource.ApplyOptions{})
+		if err == nil || !strings.Contains(err.Error(), "passwordFrom") {
+			t.Fatalf("Apply() error = %v, want an unresolved secret error", err)
+		}
+	})
+
+	t.Run("client dry-run warns instead of failing", func(t *testing.T) {
+		res, err := apply(t, seededFake(), withPassword("env:PVECTL_TEST_VM_MISSING"),
+			resource.ApplyOptions{DryRun: resource.DryRunClient})
+		if err != nil {
+			t.Fatalf("Apply() error = %v, want the manifest to validate", err)
+		}
+		if res.Action != resource.ActionValidated {
+			t.Errorf("Action = %v", res.Action)
+		}
+		if len(res.Warnings) != 1 || !strings.Contains(res.Warnings[0], "passwordFrom") {
+			t.Errorf("Warnings = %+v, want one unresolvable-reference warning", res.Warnings)
+		}
+	})
+
+	t.Run("bad syntax fails even under client dry-run", func(t *testing.T) {
+		_, err := apply(t, seededFake(), withPassword("hunter2"), resource.ApplyOptions{DryRun: resource.DryRunClient})
+		if err == nil || !strings.Contains(err.Error(), "passwordFrom") {
+			t.Fatalf("Apply() error = %v, want a syntax error", err)
+		}
+	})
+
+	t.Run("cipassword stays out of diffs and updates", func(t *testing.T) {
+		t.Setenv("PVECTL_TEST_VM_PASSWORD", "s3cret")
+		f := seededFake()
+		doc := strings.Replace(existingVMManifest, "    user: admin",
+			"    user: admin\n    passwordFrom: env:PVECTL_TEST_VM_PASSWORD", 1)
+		res, err := apply(t, f, doc, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		// The API masks cipassword; the write-only rule keeps the mask
+		// from showing up as a permanent diff.
+		if res.Action != resource.ActionUnchanged {
+			t.Errorf("Action = %v, want unchanged (diff %+v)", res.Action, res.Diff)
+		}
+	})
+
+	t.Run("the removed password field points at passwordFrom", func(t *testing.T) {
+		doc := strings.Replace(existingVMManifest, "    user: admin", "    user: admin\n    password: hunter2", 1)
+		_, err := apply(t, seededFake(), doc, resource.ApplyOptions{})
+		if err == nil || !strings.Contains(err.Error(), "passwordFrom") {
+			t.Fatalf("Apply() error = %v, want a hint naming passwordFrom", err)
 		}
 	})
 }

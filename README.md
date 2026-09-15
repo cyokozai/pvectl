@@ -108,13 +108,60 @@ then:
   disk growth becomes a resize call
 - **no change** → `unchanged`, zero writes
 
+After the config pass, apply converges the power state to
+`spec.runStrategy`:
+
+| `runStrategy` | `onboot` | apply |
+|---|---|---|
+| `Manual` (default) | unmanaged | never touches the power state |
+| `Always` | `1` | starts the VM if it is stopped |
+| `Halted` | `0` | stops the VM if it is running |
+
+A power transition counts as a change, so an otherwise identical
+manifest reports `configured` when it moves the VM.
+
 Guardrails: `vmid` and `targetNode` are immutable (mismatch is an error,
 never a silent recreate); disks cannot shrink or change storage/format
-in place; `clone`/`pool` are create-only (warned and ignored on update);
-`cloudInit.password` is write-only.
+in place; `clone` and `disks` are exclusive; `pool` is create-only and
+a mismatch with the live pool is an error, not a silent no-op;
+`cloudInit.passwordFrom` is write-only.
 
 `pvectl get vm NAME -o yaml` round-trips: applying its output reports
 `unchanged`.
+
+### Secrets
+
+Manifests reference the cloud-init password instead of carrying it, so
+they stay safe to commit:
+
+```yaml
+spec:
+  cloudInit:
+    passwordFrom: env:PVE_VM_PASSWORD     # or file:/run/secrets/vmpw
+```
+
+`file:` references have their trailing newline trimmed. The reference is
+resolved when apply runs; `--dry-run=client` checks the syntax and warns
+(rather than fails) when the target is missing, since a client dry-run
+validates the manifest, not the machine it runs on.
+
+### Unmodeled API fields
+
+`spec.raw` passes flat Proxmox API config keys straight through when
+pvectl has no typed field for them yet:
+
+```yaml
+spec:
+  raw:
+    hookscript: "local:snippets/hook.pl"
+    args: "-cpu host,+vmx"
+    bios: ovmf
+```
+
+Values are not validated — a wrong key comes back as a Proxmox API
+error. The declared-keys-only rule still holds: only the keys listed
+under `raw` are compared and updated. Declaring a key pvectl already
+generates from a typed field (`cores`, `scsi0`, `net0`, …) is an error.
 
 ## Manifest reference
 
