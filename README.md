@@ -3,7 +3,7 @@
 
 # pvectl
 
-**A kubectl-like CLI for Proxmox VE.**
+**A kubectl-like CLI for Proxmox VE.** · [日本語](README.jp.md)
 Declare your virtual machines in YAML/JSON manifests and apply them idempotently.
 
 </div>
@@ -13,10 +13,8 @@ Declare your virtual machines in YAML/JSON manifests and apply them idempotently
 pvectl is declarative convergence with no state file, plus the imperative
 operational verbs, in one binary you run from your own machine. Its central
 principle — **a field your manifest does not declare does not exist as far as
-pvectl is concerned** — keeps server defaults and template-inherited values
-from showing up as drift, which is what makes clone-based workflows idempotent
-without a `tfstate` or an `import` step.
-Full argument and non-goals: [ADR-005](docs/adr/ADR-005-purpose-and-non-goals.md).
+pvectl is concerned** — keeps server defaults and template-inherited values from
+showing up as drift. Full argument and non-goals: [ADR-005](docs/adr/ADR-005-purpose-and-non-goals.md).
 
 ## Install
 
@@ -32,13 +30,10 @@ No Go toolchain? Cross-build or run it in a container — see [quick-start](docs
 # vm.yaml
 apiVersion: pve.io/v1alpha1
 kind: VirtualMachine
-metadata:
-  name: web-server
+metadata: { name: web-server }
 spec:
   targetNode: pve-node1
-  resources:
-    cpu: { cores: 2 }
-    memory: 2048
+  resources: { cpu: { cores: 2 }, memory: 2048 }
   disks:
     - { name: scsi0, size: 32G, storage: local-lvm }
   networks:
@@ -64,8 +59,6 @@ pvectl get vm web-server -o yaml   # round-trips back into apply
 
 ## Roadmap
 
-Development happens on `dev`; **`main` is not updated until `v1.0.0`.**
-
 | Version | Milestone | Scope |
 |---|---|---|
 | `v0.1.0` | M1 | `VirtualMachine`: idempotent apply, diff, dry-run, clone, cloud-init, lifecycle |
@@ -75,14 +68,22 @@ Development happens on `dev`; **`main` is not updated until `v1.0.0`.**
 | `v0.4.*` | M4 | Pools, users, ACL, HA |
 | **`v1.0.0`** | — | M4 complete, tested, feedback addressed, merged to `main` |
 
-New kinds plug into the same verbs through a resource registry — no new commands.
+Development happens on `dev`; **`main` is not updated until `v1.0.0`.** New kinds plug into the same verbs through a resource registry — no new commands.
+
+## Contributing
+
+Open an issue before writing a feature — pvectl has a narrow scope, and
+proposals outside it are declined on purpose
+([non-goals](docs/adr/ADR-005-purpose-and-non-goals.md)). Commits need a DCO
+sign-off (`git commit -s`). There is one maintainer, so reviews are
+best-effort. Details: [CONTRIBUTING.md](CONTRIBUTING.md),
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), [SECURITY.md](SECURITY.md).
 
 ## Development
 
 `make dev-up && make check` runs vet, lint and race tests in a container,
 against an in-memory fake Proxmox VE API ([test/pvefake](test/pvefake)) — no
-cluster needed. Details in [quick-start/development](docs/quick-start/development.md)
-and [docs/dev-process.md](docs/dev-process.md).
+cluster needed. Details in [quick-start/development](docs/quick-start/development.md).
 
 ## License
 
