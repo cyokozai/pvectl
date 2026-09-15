@@ -1,5 +1,7 @@
 # Manifests and apply semantics
 
+[日本語](manifests.jp.md)
+
 Reference for the `VirtualMachine` manifest and for what `apply` actually does
 with it. If you have not created a VM yet, start with
 [quick-start](README.md).

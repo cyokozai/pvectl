@@ -1,5 +1,7 @@
 # Quick start
 
+[日本語](README.jp.md)
+
 Read this page top to bottom and you will have pvectl installed, a context
 configured, and your first VM created from a manifest.
 

@@ -3,7 +3,7 @@
 pvectl の開発環境構築から動作確認、ローカルへのバイナリインストールまでの手順。
 **ビルド・テストはすべて Docker コンテナ内で実行する**（ローカル環境を汚さない）。
 
-使い方だけを知りたい場合は [quick-start](README.md) を読むこと。
+使い方だけを知りたい場合は [quick-start](README.jp.md) を読むこと。
 コンテナ構成・テスト戦略・CI の設計意図は [docs/dev-process.md](../dev-process.md) にある。
 
 ## 前提
