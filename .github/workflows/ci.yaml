@@ -8,6 +8,13 @@ on:
 permissions:
   contents: read
 
+# Supersede in-flight runs for the same ref so a burst of pushes does not keep
+# stale runs alive. The default branch is exempt: cancelling a run on main
+# would leave a gap in the record of what was actually verified on it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   lint:
     runs-on: ubuntu-latest
