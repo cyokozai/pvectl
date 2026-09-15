@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Config
+users:
+- name: "admin@pam"
+  user:
+    token: "admin@pam!pvectl=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+- name: "dev@pam"
+  user:
+    username: "dev@pam"
+    password: "your-password-here"
+nodes:
+- name: "prod-pve"
+  node:
+    server: "https://pve.example.com:8006"
+    insecureSkipTLSVerify: false
+- name: "dev-pve"
+  node:
+    server: "https://dev-pve.example.com:8006"
+    insecureSkipTLSVerify: true
+contexts:
+- name: "production"
+  context:
+    user: "admin@pam"
+    node: "prod-pve"
+- name: "development"
+  context:
+    user: "dev@pam"
+    node: "dev-pve"
+current-context: "production"

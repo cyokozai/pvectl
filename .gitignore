@@ -52,6 +52,7 @@ go.work
 
 .env
 
-main
+# Built binaries at repo root only (anchored so cmd/pvectl/ is not ignored)
+/main
 
-pvectl
+/pvectl
