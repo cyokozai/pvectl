@@ -8,17 +8,15 @@ Declare your virtual machines in YAML/JSON manifests and apply them idempotently
 
 </div>
 
-## Goals
+## Why
 
-- **kubectl-like UX** — the verbs you already know: `get`, `describe`, `apply`, `diff`, `delete`
-- **Declarative management (IaC)** — resources described as YAML or JSON manifests; `apply` converges live state to the manifest and is safe to re-run
-- **Multi-context** — a kubeconfig-style `~/.pvectl/config` switches between clusters and credentials
-- **Task-aware** — every mutation waits for the Proxmox task (UPID) to finish and surfaces its exit status
-
-pvectl talks to the Proxmox VE REST API through
-[Telmate/proxmox-api-go](https://github.com/Telmate/proxmox-api-go),
-wrapped behind an internal interface so resource logic stays testable
-without a real cluster.
+pvectl is declarative convergence with no state file, plus the imperative
+operational verbs, in one binary you run from your own machine. Its central
+principle — **a field your manifest does not declare does not exist as far as
+pvectl is concerned** — keeps server defaults and template-inherited values
+from showing up as drift, which is what makes clone-based workflows idempotent
+without a `tfstate` or an `import` step.
+Full argument and non-goals: [ADR-005](docs/adr/ADR-005-purpose-and-non-goals.md).
 
 ## Install
 
@@ -26,175 +24,43 @@ without a real cluster.
 go install github.com/cyokozai/pvectl/cmd/pvectl@latest
 ```
 
-Or build from source (runs in a container, keeps your host clean):
+No Go toolchain? Cross-build or run it in a container — see [quick-start](docs/quick-start/README.md).
 
-```bash
-make dev-up && make build
-```
-
-## Configuration
-
-`~/.pvectl/config` (override with `--config` or `PVECTL_CONFIG`):
+## Example
 
 ```yaml
-apiVersion: v1
-kind: Config
-users:
-  - name: admin@pam
-    user:
-      token: admin@pam!pvectl=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-nodes:
-  - name: prod-pve
-    node:
-      server: https://pve.example.com:8006
-contexts:
-  - name: production
-    context:
-      user: admin@pam
-      node: prod-pve
-current-context: production
-```
-
-Authentication is either an API token (`user@realm!tokenid=secret`) or
-`username` + `password` — exactly one per user. See
-[examples/config.yaml](examples/config.yaml).
-
-## Usage
-
-```bash
-# Observe
-pvectl get vm                        # table of all VMs
-pvectl get vm web-server -o yaml     # full manifest-shaped output
-pvectl get vms -o wide               # more columns
-pvectl describe vm web-server
-
-# Declare
-pvectl apply -f vm.yaml              # create or update (idempotent)
-pvectl apply -f a.yaml -f b.yaml     # multiple files
-pvectl apply -f manifests/           # every manifest in a directory
-cat vm.yaml | pvectl apply -f -      # stdin
-pvectl apply -f vm.yaml --dry-run=server   # show the would-be action
-pvectl diff -f vm.yaml               # exit 0 = in sync, 1 = drift
-
-# Operate
-pvectl start vm web-server
-pvectl stop vm web-server
-pvectl delete vm web-server
-pvectl delete -f vm.yaml
-pvectl migrate vm web-server --to pve2            # add --online to live-migrate
-pvectl exec vm web-server -- systemctl is-active nginx   # via the guest agent
-
-# Contexts
-pvectl config get-contexts
-pvectl config use-context development
-pvectl get vm --context production   # one-off override
-
-# Shell completion
-pvectl completion bash|zsh|fish
-```
-
-Global flags: `--config`, `--context`, `-o/--output table|wide|yaml|json|name`,
-`--timeout` (task wait bound, default 5m).
-
-### Imperative verbs
-
-`start`, `stop`, `exec`, and `migrate` are one-off operations. They leave
-no trace in any manifest: nothing about "I ran this once" is a desired
-state to converge on, so nothing about them belongs in `spec`.
-
-`exec` runs a command inside a guest without SSH, through the QEMU guest
-agent, and adopts the guest's stdout, stderr, and exit code as its own:
-
-```bash
-pvectl exec vm web-server -- /bin/sh -c "df -h / | tail -1"
-pvectl exec vm web-server --exec-timeout 5m -- apt-get -y dist-upgrade
-```
-
-Everything after `--` reaches the guest untouched. The guest needs
-`agent: 1` in its config and a running `qemu-guest-agent`. The wait is
-bounded by `--exec-timeout` (default 60s), which is deliberately separate
-from the global `--timeout`: waiting on a Proxmox task and waiting on a
-command someone just typed are different kinds of waiting.
-
-`migrate` is the only verb that moves a guest between nodes. `apply`
-never migrates — when `spec.targetNode` disagrees with reality it reports
-an error instead.
-
-### How apply works
-
-`apply` resolves the VM by `spec.vmid` (if pinned) or `metadata.name`,
-then:
-
-- **not found** → create — directly, or via `spec.clone` followed by a
-  post-clone configuration pass so your declared resources, networks,
-  cloud-init, and tags win over the template's values
-- **found** → diff only the fields your manifest declares against the
-  live config, normalize server noise (disk volume names, generated MACs,
-  tag order, ssh-key encoding), and `PUT` just the changed keys;
-  disk growth becomes a resize call
-- **no change** → `unchanged`, zero writes
-
-After the config pass, apply converges the power state to
-`spec.runStrategy`:
-
-| `runStrategy` | `onboot` | apply |
-|---|---|---|
-| `Manual` (default) | unmanaged | never touches the power state |
-| `Always` | `1` | starts the VM if it is stopped |
-| `Halted` | `0` | stops the VM if it is running |
-
-A power transition counts as a change, so an otherwise identical
-manifest reports `configured` when it moves the VM.
-
-Guardrails: `vmid` and `targetNode` are immutable (mismatch is an error,
-never a silent recreate); disks cannot shrink or change storage/format
-in place; `clone` and `disks` are exclusive; `pool` is create-only and
-a mismatch with the live pool is an error, not a silent no-op;
-`cloudInit.passwordFrom` is write-only.
-
-`pvectl get vm NAME -o yaml` round-trips: applying its output reports
-`unchanged`.
-
-### Secrets
-
-Manifests reference the cloud-init password instead of carrying it, so
-they stay safe to commit:
-
-```yaml
+# vm.yaml
+apiVersion: pve.io/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: web-server
 spec:
-  cloudInit:
-    passwordFrom: env:PVE_VM_PASSWORD     # or file:/run/secrets/vmpw
+  targetNode: pve-node1
+  resources:
+    cpu: { cores: 2 }
+    memory: 2048
+  disks:
+    - { name: scsi0, size: 32G, storage: local-lvm }
+  networks:
+    - { name: net0, bridge: vmbr0 }
 ```
 
-`file:` references have their trailing newline trimmed. The reference is
-resolved when apply runs; `--dry-run=client` checks the syntax and warns
-(rather than fails) when the target is missing, since a client dry-run
-validates the manifest, not the machine it runs on.
-
-### Unmodeled API fields
-
-`spec.raw` passes flat Proxmox API config keys straight through when
-pvectl has no typed field for them yet:
-
-```yaml
-spec:
-  raw:
-    hookscript: "local:snippets/hook.pl"
-    args: "-cpu host,+vmx"
-    bios: ovmf
+```bash
+pvectl apply -f vm.yaml            # create or update; re-running writes nothing
+pvectl diff -f vm.yaml             # exit 0 in sync, 1 drift
+pvectl get vm web-server -o yaml   # round-trips back into apply
 ```
 
-Values are not validated — a wrong key comes back as a Proxmox API
-error. The declared-keys-only rule still holds: only the keys listed
-under `raw` are compared and updated. Declaring a key pvectl already
-generates from a typed field (`cores`, `scsi0`, `net0`, …) is an error.
+## Documentation
 
-## Manifest reference
-
-See [examples/vm-full.yaml](examples/vm-full.yaml) for every field with
-comments, and the other [examples](examples/) for typical shapes
-(direct create, clone, multi-document). JSON manifests work anywhere
-YAML does.
+| | |
+|---|---|
+| [quick-start](docs/quick-start/README.md) | install, configure a context, apply your first VM, every verb and flag |
+| [quick-start/manifests](docs/quick-start/manifests.md) | `spec` reference, what `apply` does, power state, secrets, escape hatch |
+| [quick-start/development](docs/quick-start/development.md) | 開発・テスト・インストール（コンテナ完結） |
+| [examples/](examples/) | annotated manifests: direct create, clone, multi-document |
+| [docs/adr/](docs/adr/) | architecture decisions |
+| [docs/prd.md](docs/prd.md) | product requirements and milestones |
 
 ## Roadmap
 
@@ -205,21 +71,17 @@ YAML does.
 | M3 | Storage, network, snapshots |
 | M4 | Pools, users, ACL, HA |
 
-New kinds plug into the same verbs through a resource registry — no new
-commands.
+New kinds plug into the same verbs through a resource registry — no new commands.
 
 ## Development
 
-Everything runs in a container (see [docs/dev-process.md](docs/dev-process.md)):
+Builds, tests and lint run in a container; the tests drive an in-memory fake
+Proxmox VE API ([test/pvefake](test/pvefake)), so no cluster is needed. More in
+[quick-start/development](docs/quick-start/development.md) and [docs/dev-process.md](docs/dev-process.md).
 
 ```bash
-make dev-up     # build & start the dev container
-make check      # vet + lint + race tests
-make build      # build ./pvectl with version ldflags
+make dev-up && make check
 ```
-
-Tests run against an in-memory fake Proxmox VE API
-([test/pvefake](test/pvefake)) — no cluster needed.
 
 ## License
 
