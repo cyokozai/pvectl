@@ -92,3 +92,74 @@ jobs:
           file dist/*
       # Only the runner's own platform can actually be executed, so the
       # `pvectl version` smoke test stays in the `build` job.
+
+  vulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # @latest on purpose: the analysis is only as good as the tool, and the
+      # vulnerability database is fetched at run time regardless of the pin.
+      - name: install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      # A single scan feeds both the report and the gate. Run
+      # `govulncheck ./...` locally for the full call traces.
+      - name: scan
+        run: govulncheck -format json ./... > govulncheck.json
+      # Gate on findings this repo's own code actually reaches (symbol level)
+      # in third-party modules. Standard-library findings are reported but do
+      # not fail the job: they are a property of the toolchain that go.mod's
+      # `go` directive pins, not of anything reviewable in a pull request, so
+      # blocking on them would leave CI permanently red.
+      - name: gate on called third-party vulnerabilities
+        run: |
+          jq -r '
+            select(.finding)
+            | select(.finding.trace[0].function != null)
+            | [ .finding.trace[0].module,
+                .finding.osv,
+                (.finding.trace[0].version // "?"),
+                (.finding.fixed_version // "n/a") ]
+            | @tsv
+          ' govulncheck.json | sort -u > called.tsv
+
+          : > stdlib.md
+          : > third-party.md
+          awk -F'\t' '
+            { line = sprintf("- %s in %s@%s (fixed in %s)", $2, $1, $3, $4) }
+            $1 == "stdlib" { print line > "stdlib.md"; next }
+            { print line > "third-party.md" }
+          ' called.tsv
+
+          {
+            echo "## govulncheck"
+            echo
+            if [ -s third-party.md ]; then
+              echo "### Called vulnerabilities in dependencies (blocking)"
+              cat third-party.md
+            else
+              echo "### No called vulnerabilities in dependencies"
+            fi
+            echo
+            if [ -s stdlib.md ]; then
+              echo "### Standard library (informational)"
+              echo "Fixed by raising the \`go\` directive in go.mod."
+              cat stdlib.md
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          cat stdlib.md third-party.md
+
+          while read -r line; do
+            echo "::warning::standard library: ${line#- } - raise go.mod's go directive"
+          done < stdlib.md
+
+          if [ -s third-party.md ]; then
+            while read -r line; do
+              echo "::error::called vulnerability in a dependency: ${line#- }"
+            done < third-party.md
+            exit 1
+          fi
