@@ -15,6 +15,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+env:
+  # Total-statement coverage floor for the `test` job. Measured at 62.7% on
+  # dev (2026-09-16); 60.0% leaves a little room for churn while still failing
+  # on a real regression. Raise it as coverage climbs.
+  COVERAGE_MIN: "60.0"
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -51,6 +57,21 @@ jobs:
         run: go test -race -coverprofile=coverage.out ./...
       - name: coverage summary
         run: go tool cover -func=coverage.out | tail -1
+      - name: coverage threshold
+        run: |
+          total=$(go tool cover -func=coverage.out |
+            awk '$1 == "total:" { gsub(/%/, "", $NF); print $NF }')
+          if [ -z "$total" ]; then
+            echo "::error::could not read the total from coverage.out"
+            exit 1
+          fi
+          echo "total coverage ${total}% (minimum ${COVERAGE_MIN}%)"
+          echo "Total coverage: **${total}%** (minimum ${COVERAGE_MIN}%)" >> "$GITHUB_STEP_SUMMARY"
+          if ! awk -v total="$total" -v min="$COVERAGE_MIN" \
+            'BEGIN { exit (total + 0 < min + 0) }'; then
+            echo "::error::total coverage ${total}% is below the ${COVERAGE_MIN}% minimum"
+            exit 1
+          fi
 
   build:
     runs-on: ubuntu-latest
