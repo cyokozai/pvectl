@@ -1,16 +1,16 @@
 # ===== Development =====
-FROM golang:1.26.8-alpine AS dev
+FROM golang:1.27.1-alpine AS dev
 
 RUN apk add --no-cache git curl bash build-base && \
     go install golang.org/x/tools/cmd/goimports@latest && \
-    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b /go/bin v2.12.2
+    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b /go/bin v2.13.2
 
 WORKDIR /workspace
 
 CMD ["sleep", "infinity"]
 
 # ===== Build =====
-FROM golang:1.26.8-alpine AS build
+FROM golang:1.27.1-alpine AS build
 
 WORKDIR /src
 
