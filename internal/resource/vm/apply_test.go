@@ -170,7 +170,7 @@ spec:
 		}
 	})
 
-	t.Run("declared disks are warned about and ignored", func(t *testing.T) {
+	t.Run("declared disks are an error, not a warning", func(t *testing.T) {
 		f := seededFake()
 		doc := cloneManifest + `
   disks:
@@ -178,15 +178,12 @@ spec:
       size: 64G
       storage: local-lvm
 `
-		res, err := apply(t, f, doc, resource.ApplyOptions{})
-		if err != nil {
-			t.Fatalf("Apply() error = %v", err)
+		_, err := apply(t, f, doc, resource.ApplyOptions{})
+		if err == nil || !strings.Contains(err.Error(), "spec.disks") || !strings.Contains(err.Error(), "spec.clone") {
+			t.Fatalf("Apply() error = %v, want a clone/disks exclusivity error", err)
 		}
-		if len(res.Warnings) == 0 || !strings.Contains(strings.Join(res.Warnings, " "), "disk") {
-			t.Errorf("Warnings = %+v, want disk warning", res.Warnings)
-		}
-		if _, has := f.Clones[0].Params["scsi0"]; has {
-			t.Error("clone params must not contain disks")
+		if len(f.Clones) != 0 {
+			t.Error("nothing must be created when the manifest is rejected")
 		}
 	})
 
@@ -299,15 +296,59 @@ func TestApplyUpdate(t *testing.T) {
 		}
 	})
 
-	t.Run("create-only fields warn on update", func(t *testing.T) {
+	t.Run("a pool the VM is not in errors instead of being ignored", func(t *testing.T) {
 		f := seededFake()
+		doc := strings.Replace(existingVMManifest, "vmid: 100", "vmid: 100\n  pool: some-pool", 1)
+		_, err := apply(t, f, doc, resource.ApplyOptions{})
+		if err == nil || !strings.Contains(err.Error(), "spec.pool") {
+			t.Fatalf("Apply() error = %v, want a create-only pool error", err)
+		}
+		if len(f.Updates) != 0 {
+			t.Error("nothing must be written when a create-only field disagrees with live")
+		}
+	})
+
+	t.Run("a pool the VM is already in is accepted", func(t *testing.T) {
+		f := seededFake()
+		f.GuestList[0].Pool = "some-pool"
 		doc := strings.Replace(existingVMManifest, "vmid: 100", "vmid: 100\n  pool: some-pool", 1)
 		res, err := apply(t, f, doc, resource.ApplyOptions{})
 		if err != nil {
 			t.Fatalf("Apply() error = %v", err)
 		}
-		if len(res.Warnings) == 0 || !strings.Contains(strings.Join(res.Warnings, " "), "pool") {
-			t.Errorf("Warnings = %+v, want pool warning", res.Warnings)
+		if res.Action != resource.ActionUnchanged {
+			t.Errorf("Action = %v, want unchanged (diff %+v)", res.Action, res.Diff)
+		}
+	})
+
+	t.Run("clone provenance is neither warned about nor re-executed", func(t *testing.T) {
+		// A cloned VM's steady-state manifest keeps declaring where it
+		// came from; re-applying it must be a no-op.
+		f := seededFake()
+		doc := `
+apiVersion: pve.io/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: db
+spec:
+  targetNode: pve2
+  vmid: 101
+  clone: some-template
+  fullClone: true
+  resources:
+    cpu:
+      cores: 4
+    memory: 4096
+`
+		res, err := apply(t, f, doc, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if res.Action != resource.ActionUnchanged || len(res.Warnings) != 0 {
+			t.Errorf("result = %+v, want unchanged with no warnings", res)
+		}
+		if len(f.Clones) != 0 {
+			t.Error("an existing VM must never be re-cloned")
 		}
 	})
 }

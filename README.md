@@ -122,7 +122,8 @@ manifest reports `configured` when it moves the VM.
 
 Guardrails: `vmid` and `targetNode` are immutable (mismatch is an error,
 never a silent recreate); disks cannot shrink or change storage/format
-in place; `clone`/`pool` are create-only (warned and ignored on update);
+in place; `clone` and `disks` are exclusive; `pool` is create-only and
+a mismatch with the live pool is an error, not a silent no-op;
 `cloudInit.passwordFrom` is write-only.
 
 `pvectl get vm NAME -o yaml` round-trips: applying its output reports

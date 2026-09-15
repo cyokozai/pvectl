@@ -69,10 +69,6 @@ func resolveSecrets(spec *Spec, dryRun resource.DryRunMode) ([]string, error) {
 }
 
 func (h *Handler) applyCreate(ctx context.Context, c api.Client, name string, spec *Spec, opts resource.ApplyOptions, warnings []string) (*resource.ApplyResult, error) {
-	if spec.Clone != "" && len(spec.Disks) > 0 {
-		warnings = append(warnings, "spec.disks are ignored when cloning; the clone keeps the source's disks")
-	}
-
 	if opts.DryRun == resource.DryRunServer {
 		return &resource.ApplyResult{Action: resource.ActionCreated, Name: name, Warnings: warnings}, nil
 	}
@@ -134,16 +130,22 @@ func (h *Handler) createFromClone(ctx context.Context, c api.Client, name string
 }
 
 func (h *Handler) applyUpdate(ctx context.Context, c api.Client, name string, spec *Spec, ref *api.GuestRef, opts resource.ApplyOptions, warnings []string) (*resource.ApplyResult, error) {
-	if spec.Clone != "" {
-		warnings = append(warnings, "spec.clone is create-only and ignored on update")
-	}
-	if spec.Pool != "" {
-		warnings = append(warnings, "spec.pool is create-only and ignored on update")
-	}
-
 	if ref.Node != spec.TargetNode {
 		return nil, fmt.Errorf("virtualmachine %q exists on node %q but the manifest declares %q; apply does not migrate (use the Proxmox migrate API)",
 			name, ref.Node, spec.TargetNode)
+	}
+
+	// The cluster row carries the pool and the power state, neither of
+	// which GuestRef knows. Fetched once, only when something needs it.
+	var summary *api.GuestSummary
+	if spec.Pool != "" || wantsPowerConvergence(spec.RunStrategy) {
+		var err error
+		if summary, err = h.summaryByID(ctx, c, ref.VMID); err != nil {
+			return nil, err
+		}
+	}
+	if err := checkCreateOnly(name, spec, summary); err != nil {
+		return nil, err
 	}
 
 	desired := desiredParams(name, spec)
@@ -156,10 +158,7 @@ func (h *Handler) applyUpdate(ctx context.Context, c api.Client, name string, sp
 	// The power state is part of the desired state, so an otherwise
 	// identical config still counts as a change when runStrategy asks
 	// for a transition.
-	power, err := h.plannedPower(ctx, c, spec, ref)
-	if err != nil {
-		return nil, err
-	}
+	power := plannedPowerFor(spec.RunStrategy, summary)
 	if d.Empty() && power == powerNone {
 		return &resource.ApplyResult{Action: resource.ActionUnchanged, Name: name, Warnings: warnings}, nil
 	}
@@ -200,26 +199,63 @@ const (
 	powerStop  powerAction = "stop"
 )
 
+// wantsPowerConvergence reports whether a strategy has an opinion about
+// the power state. Manual (the default) does not, and so costs no API
+// call either.
+func wantsPowerConvergence(s RunStrategy) bool {
+	return s == RunStrategyAlways || s == RunStrategyHalted
+}
+
+// plannedPowerFor reports the transition runStrategy wants given the
+// live cluster row. A nil summary means nothing was read, which only
+// happens when no strategy asked for convergence.
+func plannedPowerFor(s RunStrategy, summary *api.GuestSummary) powerAction {
+	if summary == nil || !wantsPowerConvergence(s) {
+		return powerNone
+	}
+	running := summary.Status == "running"
+	switch {
+	case s == RunStrategyAlways && !running:
+		return powerStart
+	case s == RunStrategyHalted && running:
+		return powerStop
+	default:
+		return powerNone
+	}
+}
+
 // plannedPower reads the live power state and reports the transition
-// spec.runStrategy wants. Manual (the default) never plans one, and so
-// never costs an API call either.
+// spec.runStrategy wants.
 func (h *Handler) plannedPower(ctx context.Context, c api.Client, spec *Spec, ref *api.GuestRef) (powerAction, error) {
-	if spec.RunStrategy != RunStrategyAlways && spec.RunStrategy != RunStrategyHalted {
+	if !wantsPowerConvergence(spec.RunStrategy) {
 		return powerNone, nil
 	}
 	summary, err := h.summaryByID(ctx, c, ref.VMID)
 	if err != nil {
 		return powerNone, err
 	}
-	running := summary.Status == "running"
-	switch {
-	case spec.RunStrategy == RunStrategyAlways && !running:
-		return powerStart, nil
-	case spec.RunStrategy == RunStrategyHalted && running:
-		return powerStop, nil
-	default:
-		return powerNone, nil
+	return plannedPowerFor(spec.RunStrategy, summary), nil
+}
+
+// checkCreateOnly rejects create-only fields whose declared value does
+// not match the live one. Silently ignoring them is the most confusing
+// failure there is: the manifest says one thing and the cluster keeps
+// doing another (ADR-006 §6).
+//
+// spec.clone and spec.fullClone are exempt because Proxmox records no
+// provenance — there is no live value to disagree with, and a manifest
+// for a VM that was cloned keeps declaring where it came from. They are
+// read as statements of origin, not as instructions.
+func checkCreateOnly(name string, spec *Spec, summary *api.GuestSummary) error {
+	if spec.Pool == "" || summary == nil || spec.Pool == summary.Pool {
+		return nil
 	}
+	live := summary.Pool
+	if live == "" {
+		live = "(none)"
+	}
+	return fmt.Errorf("virtualmachine %q: spec.pool is create-only; the manifest declares %q but the VM is in pool %s — "+
+		"move it with the Proxmox pool API, or drop spec.pool from the manifest", name, spec.Pool, live)
 }
 
 // applyPower performs the planned transition.

@@ -1,6 +1,11 @@
 # Clone-based creation: the VM is cloned from a template, then the
 # declared resources / networks / cloud-init are applied on top.
-# Disks are inherited from the source (declaring them here only warns).
+# Disks are inherited from the source, so spec.clone and spec.disks are
+# exclusive — declaring both is an error.
+#
+# spec.clone / spec.fullClone / spec.pool take effect at creation only.
+# spec.clone stays in the manifest afterwards as a statement of origin;
+# re-applying this file is a no-op, not a second clone.
 apiVersion: pve.io/v1alpha1
 kind: VirtualMachine
 metadata:

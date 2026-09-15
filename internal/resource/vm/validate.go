@@ -27,6 +27,12 @@ func validateSpec(name string, spec *Spec) error {
 		if spec.Resources.Memory <= 0 {
 			errs = append(errs, "spec.resources.memory (MB) must be greater than 0")
 		}
+	} else if len(spec.Disks) > 0 {
+		// Clone and full declaration are exclusive (ADR-006 §6): a clone
+		// inherits its disks from the source, so declaring them here
+		// could only ever be ignored.
+		errs = append(errs, "spec.disks cannot be declared together with spec.clone; a clone inherits the source's disks. "+
+			"Declare disks on the template instead, or drop spec.clone to create the VM directly")
 	}
 	if !validRunStrategy(spec.RunStrategy) {
 		errs = append(errs, fmt.Sprintf("spec.runStrategy %q must be one of %s", spec.RunStrategy, strings.Join(runStrategyNames(), " / ")))
