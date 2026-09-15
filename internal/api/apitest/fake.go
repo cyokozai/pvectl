@@ -37,6 +37,13 @@ type RawCall struct {
 	Params map[string]any
 }
 
+// MigrateCall records one MigrateGuest invocation.
+type MigrateCall struct {
+	Ref    api.GuestRef
+	Target string
+	Online bool
+}
+
 // Fake implements api.Client in memory.
 type Fake struct {
 	GuestList   []api.GuestSummary
@@ -46,13 +53,14 @@ type Fake struct {
 	// Err injects an error per method name (e.g. "CreateQemu").
 	Err map[string]error
 
-	Creates []CreateCall
-	Updates []UpdateCall
-	Clones  []CloneCall
-	Deletes []api.GuestRef
-	Starts  []api.GuestRef
-	Stops   []api.GuestRef
-	Raws    []RawCall
+	Creates    []CreateCall
+	Updates    []UpdateCall
+	Clones     []CloneCall
+	Deletes    []api.GuestRef
+	Starts     []api.GuestRef
+	Stops      []api.GuestRef
+	Raws       []RawCall
+	Migrations []MigrateCall
 }
 
 var _ api.Client = (*Fake)(nil)
@@ -224,6 +232,19 @@ func (f *Fake) StopGuest(ctx context.Context, ref *api.GuestRef) error {
 	}
 	f.Stops = append(f.Stops, *ref)
 	f.setStatus(ref.VMID, "stopped")
+	return nil
+}
+
+func (f *Fake) MigrateGuest(ctx context.Context, ref *api.GuestRef, target string, online bool) error {
+	if err := f.fail("MigrateGuest"); err != nil {
+		return err
+	}
+	f.Migrations = append(f.Migrations, MigrateCall{Ref: *ref, Target: target, Online: online})
+	for i := range f.GuestList {
+		if f.GuestList[i].VMID == ref.VMID {
+			f.GuestList[i].Node = target
+		}
+	}
 	return nil
 }
 

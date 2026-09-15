@@ -179,6 +179,18 @@ func (t *telmateClient) StopGuest(ctx context.Context, ref *GuestRef) error {
 	return nil
 }
 
+func (t *telmateClient) MigrateGuest(ctx context.Context, ref *GuestRef, target string, online bool) error {
+	params := map[string]any{"target": target}
+	if online {
+		params["online"] = true
+	}
+	path := fmt.Sprintf("/nodes/%s/%s/%d/migrate", ref.Node, guestType(ref), ref.VMID)
+	if _, err := t.c.PostWithTask(ctx, params, path); err != nil {
+		return fmt.Errorf("failed to migrate guest %d from %s to %s: %w", ref.VMID, ref.Node, target, err)
+	}
+	return nil
+}
+
 func (t *telmateClient) NextID(ctx context.Context) (int, error) {
 	id, err := t.c.GetNextID(ctx, nil)
 	if err != nil {
@@ -188,6 +200,15 @@ func (t *telmateClient) NextID(ctx context.Context) (int, error) {
 }
 
 func (t *telmateClient) Raw() RawClient { return rawClient{c: t.c} }
+
+// guestType defaults an unset ref type to qemu so callers that built a
+// ref by hand still produce a valid path.
+func guestType(ref *GuestRef) string {
+	if ref.Type == "" {
+		return "qemu"
+	}
+	return ref.Type
+}
 
 func asString(v any) string {
 	s, _ := v.(string)

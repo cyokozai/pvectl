@@ -117,6 +117,7 @@ var (
 	rxCreate = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/(qemu|lxc)$`)
 	rxTask   = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/tasks/([^/]+)/status$`)
 	rxResize = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/(qemu|lxc)/(\d+)/resize$`)
+	rxMigr   = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/(qemu|lxc)/(\d+)/migrate$`)
 	// rxDiskKey matches the config keys that carry a disk volume.
 	rxDiskKey = regexp.MustCompile(`^(scsi|virtio|sata|ide)\d+$`)
 )
@@ -163,6 +164,8 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		s.handleConfig(w, r)
 	case rxResize.MatchString(path) && r.Method == http.MethodPut:
 		s.handleResize(w, r)
+	case rxMigr.MatchString(path) && r.Method == http.MethodPost:
+		s.handleMigrate(w, r)
 	case rxClone.MatchString(path) && r.Method == http.MethodPost:
 		s.handleClone(w, r)
 	case rxStatus.MatchString(path) && r.Method == http.MethodPost:
@@ -431,6 +434,30 @@ func (s *Server) handleResize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.finishTask(w, m[1], "resize")
+}
+
+func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
+	m := rxMigr.FindStringSubmatch(r.URL.Path)
+	vmid, _ := strconv.Atoi(m[3])
+	params := formParams(r)
+	target := fmt.Sprintf("%v", params["target"])
+
+	s.mu.Lock()
+	g, ok := s.guests[vmid]
+	if ok && target != "" {
+		g.Node = target
+	}
+	s.mu.Unlock()
+
+	if !ok {
+		http.Error(w, "does not exist", http.StatusInternalServerError)
+		return
+	}
+	if target == "" {
+		http.Error(w, "missing parameter 'target'", http.StatusBadRequest)
+		return
+	}
+	s.finishTask(w, m[1], "migrate")
 }
 
 func (s *Server) handleTaskStatus(w http.ResponseWriter, r *http.Request) {

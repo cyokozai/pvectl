@@ -73,6 +73,10 @@ type Client interface {
 	// StopGuest force-stops a guest and waits for the task.
 	StopGuest(ctx context.Context, ref *GuestRef) error
 
+	// MigrateGuest moves a guest to the target node and waits for the
+	// task. online selects live migration for a running guest.
+	MigrateGuest(ctx context.Context, ref *GuestRef, target string, online bool) error
+
 	// NextID asks the cluster for the next free vmid.
 	NextID(ctx context.Context) (int, error)
 
