@@ -56,3 +56,6 @@ go.work
 /main
 
 /pvectl
+
+# Cross-build output (`make cross-build`)
+/dist/
