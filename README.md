@@ -81,6 +81,8 @@ pvectl start vm web-server
 pvectl stop vm web-server
 pvectl delete vm web-server
 pvectl delete -f vm.yaml
+pvectl migrate vm web-server --to pve2            # add --online to live-migrate
+pvectl exec vm web-server -- systemctl is-active nginx   # via the guest agent
 
 # Contexts
 pvectl config get-contexts
@@ -93,6 +95,30 @@ pvectl completion bash|zsh|fish
 
 Global flags: `--config`, `--context`, `-o/--output table|wide|yaml|json|name`,
 `--timeout` (task wait bound, default 5m).
+
+### Imperative verbs
+
+`start`, `stop`, `exec`, and `migrate` are one-off operations. They leave
+no trace in any manifest: nothing about "I ran this once" is a desired
+state to converge on, so nothing about them belongs in `spec`.
+
+`exec` runs a command inside a guest without SSH, through the QEMU guest
+agent, and adopts the guest's stdout, stderr, and exit code as its own:
+
+```bash
+pvectl exec vm web-server -- /bin/sh -c "df -h / | tail -1"
+pvectl exec vm web-server --exec-timeout 5m -- apt-get -y dist-upgrade
+```
+
+Everything after `--` reaches the guest untouched. The guest needs
+`agent: 1` in its config and a running `qemu-guest-agent`. The wait is
+bounded by `--exec-timeout` (default 60s), which is deliberately separate
+from the global `--timeout`: waiting on a Proxmox task and waiting on a
+command someone just typed are different kinds of waiting.
+
+`migrate` is the only verb that moves a guest between nodes. `apply`
+never migrates — when `spec.targetNode` disagrees with reality it reports
+an error instead.
 
 ### How apply works
 

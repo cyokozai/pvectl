@@ -191,6 +191,37 @@ func (t *telmateClient) MigrateGuest(ctx context.Context, ref *GuestRef, target 
 	return nil
 }
 
+func (t *telmateClient) GuestExec(ctx context.Context, ref *GuestRef, command []string) (int, error) {
+	vmr := proxmox.NewVmRef(proxmox.GuestID(ref.VMID)) //nolint:gosec // vmids are small positive integers
+	vmr.SetNode(ref.Node)
+	vmr.SetVmType(proxmox.GuestQemu)
+
+	// []string is form-encoded as a repeated "command" key, which is how
+	// the API takes "program plus arguments" since PVE 7.
+	result, err := t.c.QemuAgentExec(ctx, vmr, map[string]any{"command": command})
+	if err != nil {
+		return 0, agentError(ref, "agent exec", err)
+	}
+	pid, ok := result["pid"]
+	if !ok {
+		return 0, fmt.Errorf("agent exec on vm %d: response carried no pid", ref.VMID)
+	}
+	return asInt(pid), nil
+}
+
+func (t *telmateClient) GuestExecStatus(ctx context.Context, ref *GuestRef, pid int) (*ExecStatus, error) {
+	path := fmt.Sprintf("/nodes/%s/qemu/%d/agent/exec-status?pid=%d", ref.Node, ref.VMID, pid)
+	body, err := t.Raw().Get(ctx, path)
+	if err != nil {
+		return nil, agentError(ref, "agent exec-status", err)
+	}
+	data, ok := body["data"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("agent exec-status of vm %d: unexpected response %v", ref.VMID, body)
+	}
+	return parseExecStatus(data), nil
+}
+
 func (t *telmateClient) NextID(ctx context.Context) (int, error) {
 	id, err := t.c.GetNextID(ctx, nil)
 	if err != nil {

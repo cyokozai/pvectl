@@ -44,6 +44,29 @@ type MigrateCall struct {
 	Online bool
 }
 
+// ExecCall records one GuestExec invocation.
+type ExecCall struct {
+	Ref     api.GuestRef
+	Command []string
+}
+
+// ExecScript programs what the fake's guest agent reports. The zero
+// value is a command that exits immediately with status 0.
+type ExecScript struct {
+	ExitCode int
+	Stdout   string
+	Stderr   string
+	// PollsBeforeExit reports the command as still running for that many
+	// GuestExecStatus calls before it exits.
+	PollsBeforeExit int
+	// NeverExits makes the command run forever, which is what a caller's
+	// timeout has to cope with.
+	NeverExits bool
+	// Signal, when non-zero, reports the command as killed by a signal
+	// instead of exiting normally.
+	Signal int
+}
+
 // Fake implements api.Client in memory.
 type Fake struct {
 	GuestList   []api.GuestSummary
@@ -53,6 +76,9 @@ type Fake struct {
 	// Err injects an error per method name (e.g. "CreateQemu").
 	Err map[string]error
 
+	// Exec programs the guest agent's answers for GuestExec.
+	Exec ExecScript
+
 	Creates    []CreateCall
 	Updates    []UpdateCall
 	Clones     []CloneCall
@@ -61,6 +87,10 @@ type Fake struct {
 	Stops      []api.GuestRef
 	Raws       []RawCall
 	Migrations []MigrateCall
+	Execs      []ExecCall
+
+	nextPID   int
+	execPolls map[int]int
 }
 
 var _ api.Client = (*Fake)(nil)
@@ -246,6 +276,44 @@ func (f *Fake) MigrateGuest(ctx context.Context, ref *api.GuestRef, target strin
 		}
 	}
 	return nil
+}
+
+func (f *Fake) GuestExec(ctx context.Context, ref *api.GuestRef, command []string) (int, error) {
+	if err := f.fail("GuestExec"); err != nil {
+		return 0, err
+	}
+	f.Execs = append(f.Execs, ExecCall{Ref: *ref, Command: append([]string(nil), command...)})
+	if f.nextPID == 0 {
+		f.nextPID = 1000
+	}
+	pid := f.nextPID
+	f.nextPID++
+	if f.execPolls == nil {
+		f.execPolls = map[int]int{}
+	}
+	f.execPolls[pid] = f.Exec.PollsBeforeExit
+	return pid, nil
+}
+
+func (f *Fake) GuestExecStatus(ctx context.Context, ref *api.GuestRef, pid int) (*api.ExecStatus, error) {
+	if err := f.fail("GuestExecStatus"); err != nil {
+		return nil, err
+	}
+	if f.Exec.NeverExits {
+		return &api.ExecStatus{}, nil
+	}
+	if remaining := f.execPolls[pid]; remaining > 0 {
+		f.execPolls[pid] = remaining - 1
+		return &api.ExecStatus{}, nil
+	}
+	return &api.ExecStatus{
+		Exited:   true,
+		ExitCode: f.Exec.ExitCode,
+		Signal:   f.Exec.Signal,
+		Signaled: f.Exec.Signal != 0,
+		Stdout:   f.Exec.Stdout,
+		Stderr:   f.Exec.Stderr,
+	}, nil
 }
 
 func (f *Fake) NextID(context.Context) (int, error) {

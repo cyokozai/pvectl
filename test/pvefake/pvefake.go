@@ -44,7 +44,27 @@ type Server struct {
 	taskSeq     int
 	taskResults map[string]string // upid -> exitstatus
 
+	exec         ExecScript
+	execRuns     map[int]int // pid -> remaining "still running" reads
+	execPID      int
+	execCommands [][]string
+	agentError   string
+
 	requests []string // "METHOD /path", in arrival order
+}
+
+// ExecScript programs how the fake's QEMU guest agent behaves. The zero
+// value is a command that exits immediately with status 0.
+type ExecScript struct {
+	ExitCode int
+	Stdout   string
+	Stderr   string
+	// PollsBeforeExit reports the command as still running for that many
+	// exec-status reads before it reports the exit code.
+	PollsBeforeExit int
+	// NeverExits makes exec-status always report the command as running,
+	// which is what a client-side timeout has to cope with.
+	NeverExits bool
 }
 
 // New starts a fake server. Call Close when done.
@@ -54,6 +74,8 @@ func New() *Server {
 		nextID:      100,
 		failNext:    map[string]string{},
 		taskResults: map[string]string{},
+		execRuns:    map[int]int{},
+		execPID:     1000,
 	}
 	s.Server = httptest.NewServer(http.HandlerFunc(s.handle))
 	return s
@@ -106,6 +128,33 @@ func (s *Server) FailNext(op, exitStatus string) {
 	s.failNext[op] = exitStatus
 }
 
+// SetExec programs the guest agent's answers for subsequent
+// /agent/exec calls.
+func (s *Server) SetExec(script ExecScript) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.exec = script
+}
+
+// SetAgentUnavailable makes the agent endpoints fail the way Proxmox VE
+// does when the guest agent is switched off or not running. An empty
+// message clears the failure.
+func (s *Server) SetAgentUnavailable(message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.agentError = message
+}
+
+// ExecCommands returns every command the guest agent was asked to run,
+// in order, so tests can assert the endpoint was actually reached.
+func (s *Server) ExecCommands() [][]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([][]string, len(s.execCommands))
+	copy(out, s.execCommands)
+	return out
+}
+
 // fakeTicket is the auth ticket issued by the fake /access/ticket endpoint.
 const fakeTicket = "PVE:fake-ticket"
 
@@ -118,6 +167,8 @@ var (
 	rxTask   = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/tasks/([^/]+)/status$`)
 	rxResize = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/(qemu|lxc)/(\d+)/resize$`)
 	rxMigr   = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/(qemu|lxc)/(\d+)/migrate$`)
+	rxExec   = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/qemu/(\d+)/agent/exec$`)
+	rxExecSt = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/qemu/(\d+)/agent/exec-status$`)
 	// rxDiskKey matches the config keys that carry a disk volume.
 	rxDiskKey = regexp.MustCompile(`^(scsi|virtio|sata|ide)\d+$`)
 )
@@ -166,6 +217,10 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		s.handleResize(w, r)
 	case rxMigr.MatchString(path) && r.Method == http.MethodPost:
 		s.handleMigrate(w, r)
+	case rxExec.MatchString(path) && r.Method == http.MethodPost:
+		s.handleAgentExec(w, r)
+	case rxExecSt.MatchString(path) && r.Method == http.MethodGet:
+		s.handleAgentExecStatus(w, r)
 	case rxClone.MatchString(path) && r.Method == http.MethodPost:
 		s.handleClone(w, r)
 	case rxStatus.MatchString(path) && r.Method == http.MethodPost:
@@ -458,6 +513,81 @@ func (s *Server) handleMigrate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.finishTask(w, m[1], "migrate")
+}
+
+// handleAgentExec starts a "command" and answers with its pid. Unlike
+// most mutating endpoints this one is not a task: the caller polls
+// exec-status instead.
+func (s *Server) handleAgentExec(w http.ResponseWriter, r *http.Request) {
+	m := rxExec.FindStringSubmatch(r.URL.Path)
+	vmid, _ := strconv.Atoi(m[2])
+
+	command := []string{}
+	if err := r.ParseForm(); err == nil {
+		command = append(command, r.PostForm["command"]...)
+	}
+
+	s.mu.Lock()
+	if s.agentError != "" {
+		message := s.agentError
+		s.mu.Unlock()
+		writeAPIError(w, message)
+		return
+	}
+	if _, ok := s.guests[vmid]; !ok {
+		s.mu.Unlock()
+		http.Error(w, "does not exist", http.StatusInternalServerError)
+		return
+	}
+	s.execCommands = append(s.execCommands, command)
+	s.execPID++
+	pid := s.execPID
+	s.execRuns[pid] = s.exec.PollsBeforeExit
+	s.mu.Unlock()
+
+	writeData(w, map[string]any{"pid": float64(pid)})
+}
+
+func (s *Server) handleAgentExecStatus(w http.ResponseWriter, r *http.Request) {
+	pid, err := strconv.Atoi(r.URL.Query().Get("pid"))
+	if err != nil {
+		http.Error(w, "missing parameter 'pid'", http.StatusBadRequest)
+		return
+	}
+
+	s.mu.Lock()
+	message := s.agentError
+	remaining, known := s.execRuns[pid]
+	running := s.exec.NeverExits || remaining > 0
+	if remaining > 0 {
+		s.execRuns[pid] = remaining - 1
+	}
+	script := s.exec
+	s.mu.Unlock()
+
+	switch {
+	case message != "":
+		writeAPIError(w, message)
+	case !known:
+		http.Error(w, fmt.Sprintf("no such process %d", pid), http.StatusInternalServerError)
+	case running:
+		writeData(w, map[string]any{"exited": float64(0)})
+	default:
+		writeData(w, map[string]any{
+			"exited":   float64(1),
+			"exitcode": float64(script.ExitCode),
+			"out-data": script.Stdout,
+			"err-data": script.Stderr,
+		})
+	}
+}
+
+// writeAPIError answers the way Proxmox VE does on a failed call: a
+// JSON body with a "message", which the SDK surfaces verbatim.
+func writeAPIError(w http.ResponseWriter, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusInternalServerError)
+	_ = json.NewEncoder(w).Encode(map[string]any{"data": nil, "message": message})
 }
 
 func (s *Server) handleTaskStatus(w http.ResponseWriter, r *http.Request) {

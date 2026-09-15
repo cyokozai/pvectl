@@ -20,6 +20,13 @@ var (
 	// ErrAmbiguousName means several guests share the requested name;
 	// the caller should identify the guest by vmid instead.
 	ErrAmbiguousName = errors.New("ambiguous name")
+	// ErrGuestAgentUnavailable means the QEMU guest agent did not
+	// answer: it is switched off in the VM config, not installed in the
+	// guest, or not running.
+	ErrGuestAgentUnavailable = errors.New("qemu guest agent unavailable")
+	// ErrExecTimeout means a guest command did not finish inside the
+	// allotted window. The command keeps running inside the guest.
+	ErrExecTimeout = errors.New("guest command did not finish in time")
 )
 
 // GuestSummary is one row of /cluster/resources?type=vm.
@@ -43,6 +50,29 @@ type GuestRef struct {
 	VMID int
 	Node string
 	Type string // qemu | lxc
+}
+
+// ExecStatus is one sample of /agent/exec-status: the guest agent runs
+// commands asynchronously, so a command is observed through repeated
+// reads until Exited flips.
+type ExecStatus struct {
+	// Exited reports whether the guest-side command has finished. Every
+	// other field is only meaningful once it is true.
+	Exited bool
+	// ExitCode is the guest-side exit status of a normally terminated
+	// command.
+	ExitCode int
+	// Signal is the signal that killed the command; Signaled says
+	// whether the agent reported one instead of an exit code.
+	Signal   int
+	Signaled bool
+
+	Stdout string
+	Stderr string
+	// OutTruncated / ErrTruncated are set when the guest agent's capture
+	// buffer overflowed and the streams above are incomplete.
+	OutTruncated bool
+	ErrTruncated bool
 }
 
 // Client is pvectl's seam to the Proxmox VE API. Resource handlers are
@@ -76,6 +106,14 @@ type Client interface {
 	// MigrateGuest moves a guest to the target node and waits for the
 	// task. online selects live migration for a running guest.
 	MigrateGuest(ctx context.Context, ref *GuestRef, target string, online bool) error
+
+	// GuestExec starts a command inside the guest through the QEMU guest
+	// agent and returns the guest-side pid. It does not wait: the API is
+	// asynchronous, so callers poll GuestExecStatus (or call ExecWait,
+	// which does both).
+	GuestExec(ctx context.Context, ref *GuestRef, command []string) (int, error)
+	// GuestExecStatus samples a command previously started by GuestExec.
+	GuestExecStatus(ctx context.Context, ref *GuestRef, pid int) (*ExecStatus, error)
 
 	// NextID asks the cluster for the next free vmid.
 	NextID(ctx context.Context) (int, error)
