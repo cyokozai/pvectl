@@ -137,7 +137,7 @@ sequenceDiagram
 | 安全性 | immutable 変更（vmid/targetNode/disk縮小/storage変更）はエラー。**暗黙の再作成・削除は絶対にしない** |
 | セキュリティ | config は 0600 で保存。`config view` はトークン/パスワードを REDACTED。cipassword は write-only |
 | テスト容易性 | 実クラスタ不要：SDK ラッパーは `test/pvefake`（httptest 製フェイク PVE）で、ハンドラは `apitest.Fake` で検証 |
-| 互換性 | Go 1.26。SDK は commit 固定（ADR-002）。`go install` 一発で導入可能 |
+| 互換性 | Go 1.27.1 以上（真の値は `go.mod` の `go` ディレクティブ。既定の `GOTOOLCHAIN=auto` なら手元が古くても自動取得される）。SDK は commit 固定（ADR-002）。`go install` 一発で導入可能 |
 
 ## 7. 成功指標（個人 OSS として）
 
