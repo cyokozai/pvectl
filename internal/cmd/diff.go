@@ -43,6 +43,7 @@ the managed keys that would change. Exit status: 0 no differences,
 				if err != nil {
 					return &ExitError{Code: 2, Err: err}
 				}
+				logPlan(f.Logger(), resourceID(h, obj.Metadata.Name), "diff", res)
 				if res.Empty() {
 					continue
 				}

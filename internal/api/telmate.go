@@ -9,6 +9,7 @@ import (
 	"github.com/Telmate/proxmox-api-go/proxmox"
 
 	"github.com/cyokozai/pvectl/internal/config"
+	"github.com/cyokozai/pvectl/internal/verbose"
 )
 
 // telmateClient implements Client on top of the Telmate SDK. Config
@@ -16,7 +17,8 @@ import (
 // flat Proxmox param maps; the SDK contributes session/auth handling,
 // TLS, retries, and task (UPID) polling.
 type telmateClient struct {
-	c *proxmox.Client
+	c   *proxmox.Client
+	log *verbose.Logger
 }
 
 func newTelmateClient(ctx context.Context, node config.Node, user config.User, opts Options) (*telmateClient, error) {
@@ -32,7 +34,18 @@ func newTelmateClient(ctx context.Context, node config.Node, user config.User, o
 
 	tlsConfig := &tls.Config{InsecureSkipVerify: node.InsecureSkipTLSVerify} //nolint:gosec // explicit opt-in via config
 
-	client, err := proxmox.NewClient(apiURL, nil, "", tlsConfig, "", int(timeout.Seconds()), opts.Debug)
+	log := opts.Logger
+	// The credentials go to the logger before the first request, so no
+	// line can be written while they are still unknown to its sweep.
+	log.Secret(tokenSecrets(user.Token)...)
+	log.Secret(user.Password)
+
+	// The SDK's own debug flag stays off at every -v level: it dumps the
+	// Authorization header verbatim (see loggingTransport). The custom
+	// http.Client is nil below -v=6, so the default path is exactly the
+	// one the SDK builds for itself.
+	const sdkDebug = false
+	client, err := proxmox.NewClient(apiURL, newHTTPClient(tlsConfig, log), "", tlsConfig, "", int(timeout.Seconds()), sdkDebug)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create API client for %s: %w", node.Server, err)
 	}
@@ -44,7 +57,9 @@ func newTelmateClient(ctx context.Context, node config.Node, user config.User, o
 			return nil, fmt.Errorf("invalid API token (expected user@realm!tokenid=secret): %w", err)
 		}
 		client.SetAPIToken(token)
+		log.Logf(verbose.LevelContext, "authenticating to %s with an API token", apiURL)
 	case user.Username != "" || user.Password != "":
+		log.Logf(verbose.LevelContext, "authenticating to %s as %s with a password (ticket login)", apiURL, user.Username)
 		if err := client.Login(ctx, user.Username, user.Password, ""); err != nil {
 			return nil, fmt.Errorf("login failed for %s: %w", user.Username, err)
 		}
@@ -52,7 +67,12 @@ func newTelmateClient(ctx context.Context, node config.Node, user config.User, o
 		return nil, fmt.Errorf("no authentication method configured (set token or username/password)")
 	}
 
-	return &telmateClient{c: client}, nil
+	return &telmateClient{c: client, log: log}, nil
+}
+
+// task brackets a task-bearing call; see logTask.
+func (t *telmateClient) task(what string, params map[string]any) func(error) {
+	return logTask(t.log, what, params)
 }
 
 func (t *telmateClient) ListGuests(ctx context.Context) ([]GuestSummary, error) {
@@ -97,8 +117,11 @@ func (t *telmateClient) FindGuest(ctx context.Context, name string) (*GuestRef, 
 	}
 	switch len(matches) {
 	case 0:
+		t.log.Logf(verbose.LevelResolve, "no guest named %q among %d cluster guests", name, len(guests))
 		return nil, fmt.Errorf("guest %q: %w", name, ErrNotFound)
 	case 1:
+		t.log.Logf(verbose.LevelResolve, "resolved guest %q to vmid %d on node %s (%s)",
+			name, matches[0].VMID, matches[0].Node, matches[0].Type)
 		return &GuestRef{VMID: matches[0].VMID, Node: matches[0].Node, Type: matches[0].Type}, nil
 	default:
 		ids := make([]string, len(matches))
@@ -117,9 +140,11 @@ func (t *telmateClient) GuestByID(ctx context.Context, vmid int) (*GuestRef, err
 	}
 	for _, g := range guests {
 		if g.VMID == vmid {
+			t.log.Logf(verbose.LevelResolve, "resolved vmid %d to node %s (%s, name %q)", g.VMID, g.Node, g.Type, g.Name)
 			return &GuestRef{VMID: g.VMID, Node: g.Node, Type: g.Type}, nil
 		}
 	}
+	t.log.Logf(verbose.LevelResolve, "no guest with vmid %d among %d cluster guests", vmid, len(guests))
 	return nil, fmt.Errorf("guest %d: %w", vmid, ErrNotFound)
 }
 
@@ -138,42 +163,66 @@ func (t *telmateClient) CreateQemu(ctx context.Context, node string, vmid int, p
 		body[k] = v
 	}
 	body["vmid"] = vmid
-	if _, err := t.c.PostWithTask(ctx, body, fmt.Sprintf("/nodes/%s/qemu", node)); err != nil {
+	path := fmt.Sprintf("/nodes/%s/qemu", node)
+	done := t.task("POST "+path, body)
+	_, err := t.c.PostWithTask(ctx, body, path)
+	done(err)
+	if err != nil {
 		return fmt.Errorf("failed to create vm %d on %s: %w", vmid, node, err)
 	}
 	return nil
 }
 
 func (t *telmateClient) UpdateQemuConfig(ctx context.Context, ref *GuestRef, params map[string]any) error {
-	if _, err := t.c.PutWithTask(ctx, params, fmt.Sprintf("/nodes/%s/qemu/%d/config", ref.Node, ref.VMID)); err != nil {
+	path := fmt.Sprintf("/nodes/%s/qemu/%d/config", ref.Node, ref.VMID)
+	done := t.task("PUT "+path, params)
+	_, err := t.c.PutWithTask(ctx, params, path)
+	done(err)
+	if err != nil {
 		return fmt.Errorf("failed to update config of vm %d: %w", ref.VMID, err)
 	}
 	return nil
 }
 
 func (t *telmateClient) CloneQemu(ctx context.Context, src *GuestRef, params map[string]any) error {
-	if _, err := t.c.PostWithTask(ctx, params, fmt.Sprintf("/nodes/%s/qemu/%d/clone", src.Node, src.VMID)); err != nil {
+	path := fmt.Sprintf("/nodes/%s/qemu/%d/clone", src.Node, src.VMID)
+	done := t.task("POST "+path, params)
+	_, err := t.c.PostWithTask(ctx, params, path)
+	done(err)
+	if err != nil {
 		return fmt.Errorf("failed to clone vm %d: %w", src.VMID, err)
 	}
 	return nil
 }
 
 func (t *telmateClient) DeleteGuest(ctx context.Context, ref *GuestRef) error {
-	if _, err := t.c.DeleteWithTask(ctx, fmt.Sprintf("/nodes/%s/%s/%d", ref.Node, ref.Type, ref.VMID)); err != nil {
+	path := fmt.Sprintf("/nodes/%s/%s/%d", ref.Node, ref.Type, ref.VMID)
+	done := t.task("DELETE "+path, nil)
+	_, err := t.c.DeleteWithTask(ctx, path)
+	done(err)
+	if err != nil {
 		return fmt.Errorf("failed to delete guest %d: %w", ref.VMID, err)
 	}
 	return nil
 }
 
 func (t *telmateClient) StartGuest(ctx context.Context, ref *GuestRef) error {
-	if _, err := t.c.PostWithTask(ctx, nil, fmt.Sprintf("/nodes/%s/%s/%d/status/start", ref.Node, ref.Type, ref.VMID)); err != nil {
+	path := fmt.Sprintf("/nodes/%s/%s/%d/status/start", ref.Node, ref.Type, ref.VMID)
+	done := t.task("POST "+path, nil)
+	_, err := t.c.PostWithTask(ctx, nil, path)
+	done(err)
+	if err != nil {
 		return fmt.Errorf("failed to start guest %d: %w", ref.VMID, err)
 	}
 	return nil
 }
 
 func (t *telmateClient) StopGuest(ctx context.Context, ref *GuestRef) error {
-	if _, err := t.c.PostWithTask(ctx, nil, fmt.Sprintf("/nodes/%s/%s/%d/status/stop", ref.Node, ref.Type, ref.VMID)); err != nil {
+	path := fmt.Sprintf("/nodes/%s/%s/%d/status/stop", ref.Node, ref.Type, ref.VMID)
+	done := t.task("POST "+path, nil)
+	_, err := t.c.PostWithTask(ctx, nil, path)
+	done(err)
+	if err != nil {
 		return fmt.Errorf("failed to stop guest %d: %w", ref.VMID, err)
 	}
 	return nil
@@ -185,7 +234,10 @@ func (t *telmateClient) MigrateGuest(ctx context.Context, ref *GuestRef, target 
 		params["online"] = true
 	}
 	path := fmt.Sprintf("/nodes/%s/%s/%d/migrate", ref.Node, guestType(ref), ref.VMID)
-	if _, err := t.c.PostWithTask(ctx, params, path); err != nil {
+	done := t.task("POST "+path, params)
+	_, err := t.c.PostWithTask(ctx, params, path)
+	done(err)
+	if err != nil {
 		return fmt.Errorf("failed to migrate guest %d from %s to %s: %w", ref.VMID, ref.Node, target, err)
 	}
 	return nil
@@ -239,6 +291,7 @@ func (t *telmateClient) NextID(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to get next vmid: %w", err)
 	}
+	t.log.Logf(verbose.LevelResolve, "cluster reported next free vmid %d", int(id))
 	return int(id), nil
 }
 
@@ -246,7 +299,7 @@ func (t *telmateClient) Raw() RawClient { return t.raw() }
 
 // raw is Raw without the interface, for the paths inside this package
 // that need rawClient's unexported helpers.
-func (t *telmateClient) raw() rawClient { return rawClient{c: t.c} }
+func (t *telmateClient) raw() rawClient { return rawClient{c: t.c, log: t.log} }
 
 // guestType defaults an unset ref type to qemu so callers that built a
 // ref by hand still produce a valid path.
