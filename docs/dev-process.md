@@ -32,7 +32,7 @@
 ローカルを汚さない。ビルド・テスト・lint はすべて dev コンテナ内で実行する。
 
 ```bash
-make dev-up      # golang:1.27.1-alpine + golangci-lint v2.12.2 のコンテナを起動
+make dev-up      # golang:1.27.1-alpine + golangci-lint v2.13.2 のコンテナを起動
 make check       # vet + lint + race テスト（コンテナ内）
 make build       # ldflags 付きビルド
 ```
