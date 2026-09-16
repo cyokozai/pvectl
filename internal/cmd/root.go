@@ -15,6 +15,7 @@ import (
 	"github.com/cyokozai/pvectl/internal/cliopt"
 	"github.com/cyokozai/pvectl/internal/resource"
 	"github.com/cyokozai/pvectl/internal/resource/vm"
+	"github.com/cyokozai/pvectl/internal/verbose"
 )
 
 // ExitError carries a specific process exit code (e.g. diff's exit 1
@@ -58,6 +59,7 @@ or operate on them directly with get/describe/delete/start/stop.`,
 		// streams capture it too.
 		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 			f.ErrOut = cmd.ErrOrStderr()
+			cmd.SetContext(verbose.NewContext(cmd.Context(), f.Logger()))
 		},
 	}
 

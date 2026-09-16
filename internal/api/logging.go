@@ -62,7 +62,7 @@ func logTask(log *verbose.Logger, what string, params map[string]any) func(error
 	log.Logf(verbose.LevelTask, "task start: %s", what)
 	start := time.Now()
 	return func(err error) {
-		elapsed := time.Since(start).Round(time.Millisecond)
+		elapsed := time.Since(start).Round(time.Microsecond)
 		if err != nil {
 			log.Logf(verbose.LevelTask, "task failed: %s after %s: %v", what, elapsed, err)
 			return
@@ -78,12 +78,11 @@ func (t *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if wantBody && req.Body != nil {
 		// RoundTrippers may consume and close the request body; they
 		// may not otherwise mutate the request, hence the clone.
-		var err error
-		if reqBody, err = io.ReadAll(req.Body); err != nil {
-			req.Body.Close()
+		body, err := drainBody(req.Body)
+		if err != nil {
 			return nil, err
 		}
-		req.Body.Close()
+		reqBody = body
 		req = req.Clone(req.Context())
 		req.Body = io.NopCloser(bytes.NewReader(reqBody))
 	}
@@ -103,12 +102,11 @@ func (t *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 
 	var respBody []byte
 	if wantBody && resp.Body != nil {
-		var readErr error
-		if respBody, readErr = io.ReadAll(resp.Body); readErr != nil {
-			resp.Body.Close()
+		body, readErr := drainBody(resp.Body)
+		if readErr != nil {
 			return nil, readErr
 		}
-		resp.Body.Close()
+		respBody = body
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
 		// A ticket login mints credentials mid-run. Teach them to the
 		// logger so every later line that happens to carry one is swept.
@@ -131,6 +129,14 @@ func (t *loggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		t.log.Logf(verbose.LevelBody, "< body: %s", t.preview(redactResponseBody(respBody)))
 	}
 	return resp, nil
+}
+
+// drainBody reads a body to the end and closes it. The caller replaces
+// it with a reader over the returned bytes, so the body the SDK sees is
+// the one it would have seen without logging.
+func drainBody(body io.ReadCloser) ([]byte, error) {
+	defer func() { _ = body.Close() }()
+	return io.ReadAll(body)
 }
 
 // preview truncates a body for -v=8. It scrubs before cutting: a secret

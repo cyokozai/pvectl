@@ -129,7 +129,13 @@ func logPlan(log *verbose.Logger, id, action string, d *diff.Result) {
 	if !log.Enabled(verbose.LevelPlan) {
 		return
 	}
-	if d == nil || d.Empty() {
+	if d == nil {
+		// A create, or a client-side dry run: there was no live config
+		// to compare against, so "no key differs" would be a lie.
+		log.Logf(verbose.LevelPlan, "%s: %s", id, action)
+		return
+	}
+	if d.Empty() {
 		log.Logf(verbose.LevelPlan, "%s: %s, no managed key differs", id, action)
 		return
 	}

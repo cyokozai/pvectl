@@ -10,6 +10,7 @@
 package verbose
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"slices"
@@ -129,6 +130,24 @@ func (l *Logger) Scrub(s string) string {
 		s = strings.ReplaceAll(s, secret, Redacted)
 	}
 	return s
+}
+
+// contextKey is the private key the logger is stored under.
+type contextKey struct{}
+
+// NewContext returns a context carrying the logger. Resource handlers
+// receive only a context and an api.Client (that is the extension point
+// ADR-006 fixed), so this is how they reach the logger without every
+// handler signature growing a parameter.
+func NewContext(ctx context.Context, log *Logger) context.Context {
+	return context.WithValue(ctx, contextKey{}, log)
+}
+
+// FromContext returns the logger the context carries, or nil — which is
+// a working, silent logger.
+func FromContext(ctx context.Context) *Logger {
+	log, _ := ctx.Value(contextKey{}).(*Logger)
+	return log
 }
 
 // Logf writes one message at the given level. A message spanning
