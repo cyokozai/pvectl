@@ -57,6 +57,10 @@ or operate on them directly with get/describe/delete/start/stop.`,
 		// so -v can be combined with -o yaml / -o json and with pipes.
 		// Set here rather than in Execute so tests that swap the
 		// streams capture it too.
+		//
+		// cobra runs only the nearest PersistentPreRun in the chain: a
+		// subcommand that declares one of its own silences this. None
+		// do today; one that starts to must call this first.
 		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 			f.ErrOut = cmd.ErrOrStderr()
 			cmd.SetContext(verbose.NewContext(cmd.Context(), f.Logger()))
