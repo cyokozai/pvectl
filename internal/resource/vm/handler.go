@@ -13,6 +13,7 @@ import (
 	"github.com/cyokozai/pvectl/internal/printer"
 	"github.com/cyokozai/pvectl/internal/resource"
 	"github.com/cyokozai/pvectl/internal/runtime"
+	"github.com/cyokozai/pvectl/internal/verbose"
 )
 
 // Handler implements resource.Handler for VirtualMachine.
@@ -208,8 +209,11 @@ func (h *Handler) findQemu(ctx context.Context, c api.Client, name string) (*api
 			qemuMatches = append(qemuMatches, g)
 		}
 	}
+	log := verbose.FromContext(ctx)
 	switch {
 	case len(qemuMatches) == 1:
+		log.Logf(verbose.LevelResolve, "resolved virtualmachine %q to vmid %d on node %s",
+			name, qemuMatches[0].VMID, qemuMatches[0].Node)
 		return &qemuMatches[0], nil
 	case len(qemuMatches) > 1:
 		ids := make([]string, len(qemuMatches))
@@ -221,6 +225,7 @@ func (h *Handler) findQemu(ctx context.Context, c api.Client, name string) (*api
 	case len(matches) > 0:
 		return nil, fmt.Errorf("guest %q is a %s guest, not a VirtualMachine", name, matches[0].Type)
 	default:
+		log.Logf(verbose.LevelResolve, "no virtualmachine named %q among %d cluster guests", name, len(guests))
 		return nil, fmt.Errorf("virtualmachine %q: %w", name, api.ErrNotFound)
 	}
 }

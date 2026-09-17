@@ -5,13 +5,16 @@ import (
 	"fmt"
 
 	"github.com/Telmate/proxmox-api-go/proxmox"
+
+	"github.com/cyokozai/pvectl/internal/verbose"
 )
 
 // rawClient exposes path-level access on the shared SDK session for
 // endpoints the typed Client interface does not model yet. Mutations
 // still wait for task completion — there is no fire-and-forget path.
 type rawClient struct {
-	c *proxmox.Client
+	c   *proxmox.Client
+	log *verbose.Logger
 }
 
 // Get reads a path, letting the SDK retry a transient failure a few
@@ -83,21 +86,30 @@ func withinCtx[T any](ctx context.Context, call func() (T, error)) (T, error) {
 }
 
 func (r rawClient) PostTask(ctx context.Context, path string, params map[string]any) error {
-	if _, err := r.c.PostWithTask(ctx, params, path); err != nil {
+	done := logTask(r.log, "POST "+path, params)
+	_, err := r.c.PostWithTask(ctx, params, path)
+	done(err)
+	if err != nil {
 		return fmt.Errorf("POST %s: %w", path, err)
 	}
 	return nil
 }
 
 func (r rawClient) PutTask(ctx context.Context, path string, params map[string]any) error {
-	if _, err := r.c.PutWithTask(ctx, params, path); err != nil {
+	done := logTask(r.log, "PUT "+path, params)
+	_, err := r.c.PutWithTask(ctx, params, path)
+	done(err)
+	if err != nil {
 		return fmt.Errorf("PUT %s: %w", path, err)
 	}
 	return nil
 }
 
 func (r rawClient) DeleteTask(ctx context.Context, path string) error {
-	if _, err := r.c.DeleteWithTask(ctx, path); err != nil {
+	done := logTask(r.log, "DELETE "+path, nil)
+	_, err := r.c.DeleteWithTask(ctx, path)
+	done(err)
+	if err != nil {
 		return fmt.Errorf("DELETE %s: %w", path, err)
 	}
 	return nil

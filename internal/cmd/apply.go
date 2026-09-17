@@ -9,8 +9,10 @@ import (
 
 	"github.com/cyokozai/pvectl/internal/api"
 	"github.com/cyokozai/pvectl/internal/cliopt"
+	"github.com/cyokozai/pvectl/internal/diff"
 	"github.com/cyokozai/pvectl/internal/resource"
 	"github.com/cyokozai/pvectl/internal/runtime"
+	"github.com/cyokozai/pvectl/internal/verbose"
 )
 
 func newApplyCmd(f *cliopt.Factory, reg *resource.Registry) *cobra.Command {
@@ -52,7 +54,7 @@ unchanged manifest is a no-op. Every Proxmox task is awaited.`,
 			// kubectl behavior: keep going per document, aggregate failures.
 			failed := 0
 			for _, obj := range objs {
-				if err := applyOne(cmd, reg, client, obj, opts); err != nil {
+				if err := applyOne(cmd, f, reg, client, obj, opts); err != nil {
 					failed++
 					fmt.Fprintf(cmd.ErrOrStderr(), "Error: %v\n", err)
 				}
@@ -71,7 +73,7 @@ unchanged manifest is a no-op. Every Proxmox task is awaited.`,
 	return cmd
 }
 
-func applyOne(cmd *cobra.Command, reg *resource.Registry, client api.Client, obj *runtime.Unstructured, opts resource.ApplyOptions) error {
+func applyOne(cmd *cobra.Command, f *cliopt.Factory, reg *resource.Registry, client api.Client, obj *runtime.Unstructured, opts resource.ApplyOptions) error {
 	h, err := reg.ForObject(obj)
 	if err != nil {
 		return err
@@ -84,6 +86,7 @@ func applyOne(cmd *cobra.Command, reg *resource.Registry, client api.Client, obj
 	if err != nil {
 		return err
 	}
+	logPlan(f.Logger(), resourceID(h, obj.Metadata.Name), string(res.Action), res.Diff)
 	for _, w := range res.Warnings {
 		fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s: %s\n", resourceID(h, res.Name), w)
 	}
@@ -114,4 +117,31 @@ func parseDryRun(s string) (resource.ApplyOptions, error) {
 // resourceID renders the kubectl-style "virtualmachine/web-server" id.
 func resourceID(h resource.Handler, name string) string {
 	return fmt.Sprintf("%s/%s", strings.ToLower(h.GVK().Kind), name)
+}
+
+// logPlan reports what apply or diff decided for one object at -v=3:
+// the action and the managed keys judged to differ.
+//
+// Keys only, never values. A diff entry can carry a cloud-init password
+// or an ssh key, and -v=3 is below the level at which a user has asked
+// to see request bodies at all.
+func logPlan(log *verbose.Logger, id, action string, d *diff.Result) {
+	if !log.Enabled(verbose.LevelPlan) {
+		return
+	}
+	if d == nil {
+		// A create, or a client-side dry run: there was no live config
+		// to compare against, so "no key differs" would be a lie.
+		log.Logf(verbose.LevelPlan, "%s: %s", id, action)
+		return
+	}
+	if d.Empty() {
+		log.Logf(verbose.LevelPlan, "%s: %s, no managed key differs", id, action)
+		return
+	}
+	keys := make([]string, len(d.Entries))
+	for i, e := range d.Entries {
+		keys[i] = e.Key
+	}
+	log.Logf(verbose.LevelPlan, "%s: %s, changed keys: %s", id, action, strings.Join(keys, ", "))
 }

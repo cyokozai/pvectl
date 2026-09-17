@@ -15,6 +15,7 @@ import (
 	"github.com/cyokozai/pvectl/internal/cliopt"
 	"github.com/cyokozai/pvectl/internal/resource"
 	"github.com/cyokozai/pvectl/internal/resource/vm"
+	"github.com/cyokozai/pvectl/internal/verbose"
 )
 
 // ExitError carries a specific process exit code (e.g. diff's exit 1
@@ -52,6 +53,18 @@ declare resources in YAML/JSON manifests and apply them idempotently,
 or operate on them directly with get/describe/delete/start/stop.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		// Debug output goes to cobra's error stream, never to stdout,
+		// so -v can be combined with -o yaml / -o json and with pipes.
+		// Set here rather than in Execute so tests that swap the
+		// streams capture it too.
+		//
+		// cobra runs only the nearest PersistentPreRun in the chain: a
+		// subcommand that declares one of its own silences this. None
+		// do today; one that starts to must call this first.
+		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
+			f.ErrOut = cmd.ErrOrStderr()
+			cmd.SetContext(verbose.NewContext(cmd.Context(), f.Logger()))
+		},
 	}
 
 	root.PersistentFlags().StringVar(&f.ConfigPath, "config", "",
@@ -62,6 +75,10 @@ or operate on them directly with get/describe/delete/start/stop.`,
 		"output format: table|wide|yaml|json|name")
 	root.PersistentFlags().DurationVar(&f.Timeout, "timeout", 5*time.Minute,
 		"how long to wait for Proxmox tasks to complete")
+	root.PersistentFlags().IntVarP(&f.Verbosity, "v", "v", 0,
+		"debug output level on stderr, on kubectl's scale: 0 silent, 1-5 pvectl's own decisions "+
+			"(config/context, name resolution, diff, tasks, parameters), 6 HTTP request summaries, "+
+			"7 +headers, 8 +bodies, 9 +untruncated bodies. Credentials are always redacted")
 
 	root.AddCommand(
 		newGetCmd(f, reg),

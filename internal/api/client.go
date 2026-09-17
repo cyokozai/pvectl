@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cyokozai/pvectl/internal/config"
+	"github.com/cyokozai/pvectl/internal/verbose"
 )
 
 // Sentinel errors for callers to match with errors.Is.
@@ -136,7 +137,9 @@ type Options struct {
 	// TaskTimeout bounds how long mutating calls wait for task
 	// completion. Zero means 5 minutes.
 	TaskTimeout time.Duration
-	Debug       bool
+	// Logger receives the -v debug output. Nil (the -v=0 case) makes
+	// every log call a no-op and leaves the HTTP stack untouched.
+	Logger *verbose.Logger
 }
 
 // DefaultTaskTimeout is used when Options.TaskTimeout is zero.
