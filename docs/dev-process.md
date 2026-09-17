@@ -32,18 +32,22 @@
 ローカルを汚さない。ビルド・テスト・lint はすべて dev コンテナ内で実行する。
 
 ```bash
-make dev-up      # golang:1.26-alpine + golangci-lint v2.12.2 のコンテナを起動
+make dev-up      # golang:1.27.1-alpine + golangci-lint v2.13.2 のコンテナを起動
 make check       # vet + lint + race テスト（コンテナ内）
 make build       # ldflags 付きビルド
 ```
 
 - ソースはバインドマウント（ホストのエディタで編集 → 即反映）、go mod/build キャッシュは名前付きボリューム
 - VS Code 利用時は `.devcontainer/devcontainer.json` で同じコンテナにアタッチ可能
+- **Go は `go.mod` の `go` ディレクティブが最小要求バージョン、Dockerfile がビルドに使う
+  固定イメージ（`golang:1.27.1-alpine`）という役割分担である。** 現在はどちらも 1.27 系の最新
 - シークレット（`.env` 等）はコンテナにマウントしない・読まない
 
 ## 3. ブランチ / コミット
 
-- `main` = リリース可能。作業は短命ブランチ → PR → squash/merge
+- `dev` = 開発の主線。作業は `dev` から切った短命ブランチ → PR → squash/merge で `dev` へ戻す
+- `main` = リリース済み。各リリース（`v0.1.0` / `v0.2.0` / …）ごとに `dev` → `main` の PR を
+  マージし、`main` 上でタグを打つ
 - コミットは Conventional Commits + gitmoji（`.gitmessage` 参照、日本語可）
 - git 操作（add/commit/push）は人間が実行する
 

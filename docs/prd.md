@@ -26,7 +26,7 @@ kubectl ユーザーにとって馴染みのある「宣言的マニフェスト
 
 - watch / コントローラ型の常駐リコンサイル（apply は一回限りの収束）
 - `apply --prune`（マニフェストにないリソースの削除）
-- VM のライブマイグレーション（`targetNode` 変更はエラーにする）
+- apply によるライブマイグレーションの暗黙実行（`spec.targetNode` の不一致はエラー。ノード間の移動は `migrate` 動詞で明示的に行う）
 - Proxmox クラスタ自体の構築・ノード管理
 
 ## 3. kubectl パリティ表
@@ -40,20 +40,39 @@ kubectl ユーザーにとって馴染みのある「宣言的マニフェスト
 | `diff -f`（exit 0/1/>1） | 同一 | ✅ M1 |
 | `delete TYPE NAME` / `delete -f` | 同一 | ✅ M1 |
 | `config get-contexts/current-context/use-context/view` | 同一 | ✅ M1 |
-| `completion bash/zsh/fish` | cobra 標準 | ✅ M1 |
+| `completion bash/zsh/fish` | cobra 標準（powershell も付く） | ✅ M1 |
 | `--context` / `--kubeconfig`（→ `--config`） | 同一 | ✅ M1 |
-| `logs` / `exec` | 対応なし（将来: シリアルコンソール検討） | ➖ |
+| `exec POD -- CMD` | `exec TYPE NAME -- CMD`（QEMU guest agent 経由、`--exec-timeout`） | ✅ M1.5 |
+| （kubectl に対応物なし） | `migrate TYPE NAME --to NODE`（`--online`） | ✅ M1.5 |
+| `logs` | 対応なし（将来: シリアルコンソール検討） | ➖ |
 
 ## 4. マイルストーン
 
 | マイルストーン | スコープ | リリース条件 |
 |---|---|---|
 | **M1** | `VirtualMachine`（qemu）完全対応: 冪等 apply / diff / dry-run / clone+再設定 / cloud-init / disk resize / lifecycle | 回帰チェックリスト全通過・CI green・docs 完備 → `v0.1.0` |
+| **M1.5**（現在） | M1 の後に入った追補: `exec` / `migrate` 動詞、`spec.raw`（ADR-006 §7）、`spec.runStrategy`、`cloudInit.passwordFrom`（いずれも ADR-005） | M1 と同時に `v0.1.0` としてリリース |
 | M2 | `Container`（LXC）: `FindGuest` の一般化、`ostemplate`/`rootfs`/`mountPoints` | 同上 → `v0.2.0` |
 | M3 | `Storage` / `Network`（pending+reload モデル）/ `Snapshot`（動詞主体） | `v0.3.0` |
-| M4 | `Pool` / `User`(+token) / `ACL`（set 調停）/ `HA` | `v0.4.0` |
+| M4 | `Pool` / `User`(+token) / `ACL`（set 調停）/ `HA` | `v0.4.*` |
+| **v1.0.0** | M4 が完成し、テストを行い、フィードバックの内容を十分反映した状態 | 上記すべて + マニフェストのスキーマ安定（`v1alpha1` → `v1`）→ `v1.0.0` |
 
 新しい kind は `resource.Handler` を実装して `Register()` する 1 行で全動詞に接続される（ADR-001）。
+
+### バージョンと分岐の関係
+
+- 開発は `dev` で進む
+- **`main` はリリース済みバージョンを指す。** 各リリース（`v0.1.0` / `v0.2.0` / …）ごとに
+  `dev` → `main` の PR をマージし、`main` 上でタグを打つ
+- `v0.x` は `v1alpha1` スキーマの期間であり、破壊的変更を許容する（実施済み:
+  `spec.startOnBoot` → `spec.runStrategy`、`spec.cloudInit.password` →
+  `spec.cloudInit.passwordFrom`）
+- **`v1.0.0` は「マニフェストのスキーマが安定し `v1alpha1` を抜ける時点」である。** M4 の完成・
+  テスト・フィードバック反映がその前提条件であり、`main` への初回マージを意味するのではない
+- 既存マイルストーンへのバグ修正は patch（`v0.1.1`, `v0.1.2`, …）で出す
+
+最初のリリースは **`v0.1.0`**（M1 + M1.5）で、`VirtualMachine` の宣言的管理、`exec` /
+`migrate`、`spec.raw`、`spec.runStrategy`、`cloudInit.passwordFrom` を含む。
 
 ## 5. アーキテクチャ
 
@@ -118,7 +137,7 @@ sequenceDiagram
 | 安全性 | immutable 変更（vmid/targetNode/disk縮小/storage変更）はエラー。**暗黙の再作成・削除は絶対にしない** |
 | セキュリティ | config は 0600 で保存。`config view` はトークン/パスワードを REDACTED。cipassword は write-only |
 | テスト容易性 | 実クラスタ不要：SDK ラッパーは `test/pvefake`（httptest 製フェイク PVE）で、ハンドラは `apitest.Fake` で検証 |
-| 互換性 | Go 1.26。SDK は commit 固定（ADR-002）。`go install` 一発で導入可能 |
+| 互換性 | Go 1.27.1 以上（真の値は `go.mod` の `go` ディレクティブ。既定の `GOTOOLCHAIN=auto` なら手元が古くても自動取得される）。SDK は commit 固定（ADR-002）。`go install` 一発で導入可能 |
 
 ## 7. 成功指標（個人 OSS として）
 
