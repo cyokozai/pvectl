@@ -25,3 +25,31 @@ SDK の `*WithTask` は完了までブロックするため、「タスクを待
 - **手書きクライアント継続**: タスク待機・リトライ・チケット更新を自前保守するコストが SDK 追従コストを上回る
 - **luthermonson/go-proxmox**: API カバレッジと実績で Telmate に劣後（コミュニティ規模）
 - **apidoc スキーマからのコード生成**: 生成基盤の構築が M1 を遅らせる。M4 以降に必要なら再検討
+
+## 追補（2026-09-16、SDK の固定 commit を更新）
+
+本文の決定（commit 固定・内部インターフェースの背後に隠蔽）は変えない。固定先の commit のみ更新する。
+
+| | commit | 日付 |
+|---|---|---|
+| 旧 | `v0.0.0-20260811170036-d21834931666` | 2026-08-11 |
+| 新 | `v0.0.0-20260914192510-57a492a8ca45` | 2026-09-14 |
+
+### 更新理由
+
+Go 1.27.1 へのツールチェイン更新に合わせて依存全体を `go get -u ./...` で追従させた際、upstream が 21 commit（54 ファイル）進んでいた。内容は LXC interfaces、ノード一覧、LXC の pending 修正、メモリレイアウト最適化が中心で、pvectl が使う経路の変更は含まれない。
+
+**本文 §3 の前提は変わっていない。** upstream には依然として semver タグが存在せず（2026-09-16 時点で tags API は空）、pseudo-version 固定を続ける以外の選択肢がない。
+
+### 依存面積の実測
+
+本文 §2 / §4 の「依存面積を最小化する」判断が機能していることを、この更新で確認できた。pvectl が SDK から参照している識別子は 6 個だけである。
+
+```
+proxmox.ApiToken  proxmox.Client  proxmox.GuestID
+proxmox.GuestQemu proxmox.NewClient proxmox.NewVmRef
+```
+
+`ConfigQemu` を避け生 key-value（`GetItemConfigMapStringInterface`）とフラットな param map に留めた結果、**54 ファイルが変わった upstream 更新に対してコード変更が 0 行で済んだ**。`gofmt` / `go vet` / `go test ./...` / `go test -race ./...` はいずれも全通過している。
+
+この「上げてもテストが通る」状態を確認できる限り、以後の SDK 更新も同じ手順（更新 → 全テスト → 本 ADR に追補）で進める。
