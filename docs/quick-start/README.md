@@ -12,14 +12,43 @@ configured, and your first VM created from a manifest.
 
 ## 1. Install
 
+### From a release
+
+Every `v*` tag publishes `pvectl_<version>_<os>_<arch>.tar.gz` for linux and
+darwin on amd64 and arm64, plus one `SHA256SUMS` covering all four. Each
+archive holds the `pvectl` binary, `LICENSE` and `README.md`.
+
+```bash
+version=v0.1.0
+target=linux_amd64        # or linux_arm64, darwin_amd64, darwin_arm64
+base=https://github.com/cyokozai/pvectl/releases/download/$version
+
+curl -fsSLO "$base/pvectl_${version}_${target}.tar.gz"
+curl -fsSLO "$base/SHA256SUMS"
+sha256sum --ignore-missing -c SHA256SUMS   # macOS: shasum -a 256 --ignore-missing -c SHA256SUMS
+
+tar -xzf "pvectl_${version}_${target}.tar.gz"
+install -m 0755 "pvectl_${version}_${target}/pvectl" ~/.local/bin/pvectl
+```
+
+`--ignore-missing` is what lets a single downloaded archive be checked against
+a `SHA256SUMS` that lists all four. Without it the three you did not download
+are reported as failures.
+
+Prereleases (`-rc`, `-beta`, `-alpha` in the tag) are marked as prereleases on
+the releases page, so `/releases/latest` never resolves to one.
+
+### With a Go toolchain
+
 ```bash
 go install github.com/cyokozai/pvectl/cmd/pvectl@latest
 ```
 
-Prebuilt binaries are not published yet; goreleaser is on the list for M2
-([dev-process.md §6](../dev-process.md)). To get a binary without a Go
-toolchain on your host, cross-build inside the dev container — the full recipe
-is in [development.md](development.md):
+### Neither
+
+No release build for your platform and no Go toolchain on the host? Cross-build
+inside the dev container — the full recipe is in
+[development.md](development.md):
 
 ```bash
 make dev-up

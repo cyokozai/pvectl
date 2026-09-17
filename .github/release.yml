@@ -1,0 +1,29 @@
+# Categories for the release notes GitHub generates
+# (`gh release create --generate-notes` in .github/workflows/release.yaml).
+# This repo keeps no hand-written CHANGELOG, so these headings are the only
+# structure a reader gets — every merged pull request lands under one of them.
+#
+# Only labels that actually exist on this repository are listed. The issue
+# templates apply `bug` and `enhancement` automatically; `documentation` is
+# applied by hand. Anything unlabelled falls through to "Other changes", so a
+# forgotten label costs placement, never visibility.
+changelog:
+  exclude:
+    labels:
+      - duplicate
+      - invalid
+      - wontfix
+  categories:
+    - title: Features
+      labels:
+        - enhancement
+    - title: Bug fixes
+      labels:
+        - bug
+    - title: Documentation
+      labels:
+        - documentation
+    # Catch-all. Must stay last: the first matching category wins.
+    - title: Other changes
+      labels:
+        - "*"

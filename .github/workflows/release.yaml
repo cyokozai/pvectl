@@ -1,0 +1,148 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+# Default to read-only. Only the `release` job widens this, and only for
+# itself — see the job-level `permissions` block below.
+permissions:
+  contents: read
+
+# One run per tag. Unlike CI there is no cancel-in-progress: a release run
+# that is halfway through uploading assets must not be killed by a second
+# push of the same tag.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Everything that can say "do not release this" runs here, without write
+  # permission. `release` only starts once this passes.
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # Required by the reachability check below. The default depth of 1
+          # fetches the tag and nothing else — no origin/main, no history —
+          # so `git merge-base --is-ancestor` would have nothing to answer
+          # with. Measured: depth 1 on a tag push gives `rev-list --count
+          # HEAD` == 1 and no refs/remotes/origin/main at all.
+          fetch-depth: 0
+      # `main` tracks released versions (docs/prd.md, "バージョンと分岐の関係").
+      # A tag pushed onto dev or a topic branch would otherwise produce a
+      # release from a commit that main never got. Fail before anything is
+      # built rather than after it is published.
+      - name: tag is reachable from main
+        run: |
+          # fetch-depth: 0 fetches every branch, but ask explicitly so this
+          # step does not depend on the action's refspec staying that way.
+          git fetch --no-tags --quiet origin \
+            +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main; then
+            echo "::error::tag ${GITHUB_REF_NAME} (${GITHUB_SHA}) is not reachable from main"
+            echo "::error::merge dev into main first, then tag the merge commit on main"
+            exit 1
+          fi
+          echo "tag ${GITHUB_REF_NAME} (${GITHUB_SHA}) is reachable from main"
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+      # Same flags as the CI `test` job, minus the coverage gate: a release
+      # is the one build that cannot be cheaply retracted once published, and
+      # -race costs only a few seconds on this suite.
+      - name: go test
+        run: go test -race ./...
+
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      # Creating the release and uploading its assets. Scoped to this job so
+      # the test run above never holds a writable token.
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # The Makefile's `VERSION ?= $(shell git describe --tags ...)` is
+          # what puts the version into the binary, so the tag has to be in
+          # the checkout. Keep this identical to the `verify` job's checkout
+          # rather than tuning it: the two must agree on what was inspected.
+          fetch-depth: 0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+
+      # HOST=1 keeps the Makefile off `docker compose exec`. The platform
+      # list (PLATFORMS) and the LDFLAGS live in the Makefile, so a release
+      # binary is built exactly the way a local `make cross-build` builds one
+      # (ADR-007 決定内容 3, ADR-008).
+      - name: cross-compile every platform
+        run: make cross-build HOST=1
+
+      # The one thing that cannot be noticed after the fact: a release whose
+      # binaries report the wrong version. Only the runner's own platform is
+      # executable, but all four share one LDFLAGS invocation, so checking
+      # linux/amd64 covers the injection itself.
+      - name: version is the tag
+        run: |
+          got=$(dist/pvectl_linux_amd64 version)
+          echo "$got"
+          case "$got" in
+            "pvectl version ${GITHUB_REF_NAME} "*) ;;
+            *)
+              echo "::error::expected 'pvectl version ${GITHUB_REF_NAME} ...', got '${got}'"
+              exit 1
+              ;;
+          esac
+
+      # pvectl_<tag>_<os>_<arch>.tar.gz, each holding the binary under its
+      # plain name plus LICENSE and README.md. The tag goes in verbatim so
+      # the version in the download URL's path and in its filename are the
+      # same string.
+      - name: build the archives
+        run: |
+          mkdir -p dist/stage dist/archives
+          for bin in dist/pvectl_*; do
+            target=${bin#dist/pvectl_}
+            goos=${target%_*}
+            goarch=${target#*_}
+            name="pvectl_${GITHUB_REF_NAME}_${goos}_${goarch}"
+            mkdir -p "dist/stage/${name}"
+            install -m 0755 "$bin" "dist/stage/${name}/pvectl"
+            install -m 0644 LICENSE README.md "dist/stage/${name}/"
+            tar -czf "dist/archives/${name}.tar.gz" -C dist/stage "$name"
+          done
+          ls -l dist/archives
+
+      - name: generate SHA256SUMS
+        run: |
+          cd dist/archives
+          # Bare filenames, no leading path: a user who downloaded one
+          # archive next to SHA256SUMS can check it with
+          # `sha256sum --ignore-missing -c SHA256SUMS`.
+          sha256sum -- *.tar.gz > SHA256SUMS
+          sha256sum -c SHA256SUMS
+          cat SHA256SUMS
+
+      # gh is preinstalled on the runner, so the release needs no third-party
+      # action. Notes come from GitHub's generator (.github/release.yml holds
+      # the categories); this repo keeps no hand-written CHANGELOG.
+      - name: create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          args=(--repo "$GITHUB_REPOSITORY" --title "$tag"
+                --generate-notes --verify-tag)
+          # Semver puts a hyphen after the version core for every prerelease
+          # (-rc.1, -beta.2, -alpha); a stable tag never contains one.
+          case "$tag" in
+            *-*) args+=(--prerelease) ;;
+          esac
+          gh release create "$tag" "${args[@]}" \
+            dist/archives/*.tar.gz dist/archives/SHA256SUMS

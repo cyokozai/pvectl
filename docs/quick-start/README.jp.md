@@ -12,13 +12,42 @@
 
 ## 1. インストール
 
+### リリースから取得する
+
+`v*` タグごとに、linux / darwin × amd64 / arm64 の
+`pvectl_<version>_<os>_<arch>.tar.gz` と、その 4 つ分をまとめた `SHA256SUMS` を
+公開している。各アーカイブには `pvectl` バイナリ・`LICENSE`・`README.md` が
+入っている。
+
+```bash
+version=v0.1.0
+target=linux_amd64        # または linux_arm64, darwin_amd64, darwin_arm64
+base=https://github.com/cyokozai/pvectl/releases/download/$version
+
+curl -fsSLO "$base/pvectl_${version}_${target}.tar.gz"
+curl -fsSLO "$base/SHA256SUMS"
+sha256sum --ignore-missing -c SHA256SUMS   # macOS: shasum -a 256 --ignore-missing -c SHA256SUMS
+
+tar -xzf "pvectl_${version}_${target}.tar.gz"
+install -m 0755 "pvectl_${version}_${target}/pvectl" ~/.local/bin/pvectl
+```
+
+`--ignore-missing` は、4 つ分が載った `SHA256SUMS` に対して実際に落とした 1 つ
+だけを検証するために要る。付けないと、落としていない 3 つが失敗として報告される。
+
+タグに `-rc` / `-beta` / `-alpha` を含むものは prerelease として公開されるため、
+`/releases/latest` がそれを指すことはない。
+
+### Go ツールチェインがある場合
+
 ```bash
 go install github.com/cyokozai/pvectl/cmd/pvectl@latest
 ```
 
-ビルド済みバイナリはまだ配布していない。goreleaser は M2 の検討項目である
-（[dev-process.md §6](../dev-process.md)）。ホストに Go ツールチェインを入れずに
-バイナリを得るには、dev コンテナ内でクロスビルドする — 手順の全文は
+### どちらも使えない場合
+
+自分のプラットフォーム向けのリリースが無く、ホストに Go ツールチェインも入れたく
+ない場合は、dev コンテナ内でクロスビルドする — 手順の全文は
 [development.md](development.md) にある。
 
 ```bash
