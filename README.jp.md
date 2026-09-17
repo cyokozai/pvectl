@@ -18,11 +18,22 @@ pvectl は、state ファイルを持たない宣言的収束と、命令的な�
 
 ## インストール
 
+[最新リリース](https://github.com/cyokozai/pvectl/releases/latest)から自分の
+プラットフォーム（linux/darwin × amd64/arm64）の tar.gz を取得し、隣に置かれた
+`SHA256SUMS` で検証して、`pvectl` を `PATH` に置く。
+
+```bash
+sha256sum --ignore-missing -c SHA256SUMS   # macOS: shasum -a 256 --ignore-missing -c
+tar -xzf pvectl_v0.1.0_linux_amd64.tar.gz
+```
+
+Go ツールチェインがある場合は次でもよい。
+
 ```bash
 go install github.com/cyokozai/pvectl/cmd/pvectl@latest
 ```
 
-ホストに Go が無い場合は、コンテナでクロスビルドするか、コンテナ内で実行する — [quick-start](docs/quick-start/README.jp.md) を参照。
+どちらも使えない場合は、コンテナでクロスビルドするか、コンテナ内で実行する — [quick-start](docs/quick-start/README.jp.md) を参照。
 
 ## 動作例
 

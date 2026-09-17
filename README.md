@@ -18,11 +18,22 @@ showing up as drift. Full argument and non-goals: [ADR-005](docs/adr/ADR-005-pur
 
 ## Install
 
+Grab a tarball for your platform (linux/darwin × amd64/arm64) from the
+[latest release](https://github.com/cyokozai/pvectl/releases/latest), verify it
+against the `SHA256SUMS` published beside it, and put `pvectl` on your `PATH`:
+
+```bash
+sha256sum --ignore-missing -c SHA256SUMS   # macOS: shasum -a 256 --ignore-missing -c
+tar -xzf pvectl_v0.1.0_linux_amd64.tar.gz
+```
+
+With a Go toolchain:
+
 ```bash
 go install github.com/cyokozai/pvectl/cmd/pvectl@latest
 ```
 
-No Go toolchain? Cross-build or run it in a container — see [quick-start](docs/quick-start/README.md).
+Neither? Cross-build or run it in a container — see [quick-start](docs/quick-start/README.md).
 
 ## Example
 
