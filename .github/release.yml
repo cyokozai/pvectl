@@ -4,9 +4,10 @@
 # structure a reader gets — every merged pull request lands under one of them.
 #
 # Only labels that actually exist on this repository are listed. The issue
-# templates apply `bug` and `enhancement` automatically; `documentation` is
-# applied by hand. Anything unlabelled falls through to "Other changes", so a
-# forgotten label costs placement, never visibility.
+# templates apply `bug` and `enhancement` automatically; `documentation` and
+# `breaking-change` are applied by hand; dependabot applies `dependencies`.
+# Anything unlabelled falls through to "Other changes", so a forgotten label
+# costs placement, never visibility.
 changelog:
   exclude:
     labels:
@@ -14,6 +15,13 @@ changelog:
       - invalid
       - wontfix
   categories:
+    # First: while the manifest schema is v1alpha1, a v0.x release may require
+    # users to rewrite manifests (spec.startOnBoot -> spec.runStrategy and
+    # spec.cloudInit.password -> passwordFrom both already happened). That is
+    # the one thing a reader must not scroll past, so it leads the notes.
+    - title: Breaking changes
+      labels:
+        - breaking-change
     - title: Features
       labels:
         - enhancement
@@ -23,6 +31,13 @@ changelog:
     - title: Documentation
       labels:
         - documentation
+    # dependabot runs weekly across gomod, github-actions and docker, so
+    # without a category of its own it would fill "Other changes" and bury
+    # the hand-written work. `github_actions` needs no entry: dependabot
+    # applies it alongside `dependencies`, and the first match wins.
+    - title: Dependencies
+      labels:
+        - dependencies
     # Catch-all. Must stay last: the first matching category wins.
     - title: Other changes
       labels:
