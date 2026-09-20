@@ -48,6 +48,11 @@ make build       # ldflags 付きビルド
 - `dev` = 開発の主線。作業は `dev` から切った短命ブランチ → PR → squash/merge で `dev` へ戻す
 - `main` = リリース済み。各リリース（`v0.1.0` / `v0.2.0` / …）ごとに `dev` → `main` の PR を
   マージし、`main` 上でタグを打つ
+- **`main` への変更は `dev` からの PR だけに限る。** 作業ブランチや dependabot の PR を
+  `main` へ直接向けてはならない（2026-09-20 に dependabot の PR が `main` へ直接マージされた）
+- これは `.github/workflows/guard-main.yaml`（ジョブ `guard-main`）が機械的に強制する。
+  base が `main` の PR で head が `dev` 以外なら失敗し、ruleset の必須チェックとしてマージを止める。
+  dependabot の宛先は `.github/dependabot.yml` の `target-branch: dev` で `dev` に固定してある
 - コミットは Conventional Commits + gitmoji（`.gitmessage` 参照、日本語可）
 - git 操作（add/commit/push）は人間が実行する
 
@@ -65,7 +70,11 @@ graph LR
 ```
 
 - `.github/workflows/ci.yaml`: lint / test / build の 3 ジョブ並列。Go バージョンは `go.mod` に追従（`go-version-file`）
-- dependabot: gomod / github-actions / docker を週次。Telmate SDK は semver 無しのため PR ベースで検証して取り込む（ADR-002）
+- `.github/workflows/guard-main.yaml`: base が `main` の PR で head が `dev` 以外なら失敗させる
+  必須チェック（ジョブ `guard-main`）。action も checkout も使わず `github.head_ref` だけで判定する
+- dependabot: gomod / github-actions / docker を週次。宛先は `target-branch: dev`。
+  同じファイルを触る PR の連鎖衝突を避けるため `groups` で束ねる（gomod は minor/patch のみ束ね、
+  major は切り分けのため個別 PR）。Telmate SDK は semver 無しのため PR ベースで検証して取り込む（ADR-002）
 - カバレッジは計測・表示のみ（M1 では閾値ゲートなし）
 
 ## 5. リリースチェックリスト（M1 = v0.1.0）
