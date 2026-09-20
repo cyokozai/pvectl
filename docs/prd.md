@@ -63,7 +63,8 @@ kubectl ユーザーにとって馴染みのある「宣言的マニフェスト
 
 - 開発は `dev` で進む
 - **`main` はリリース済みバージョンを指す。** 各リリース（`v0.1.0` / `v0.2.0` / …）ごとに
-  `dev` → `main` の PR をマージし、`main` 上でタグを打つ
+  `dev` → `main` の PR をマージし、`main` 上でタグを打つ。`main` への PR は `dev` からのものだけで、
+  これは `guard-main` ワークフローが必須チェックとして強制する（docs/dev-process.md）
 - `v0.x` は `v1alpha1` スキーマの期間であり、破壊的変更を許容する（実施済み:
   `spec.startOnBoot` → `spec.runStrategy`、`spec.cloudInit.password` →
   `spec.cloudInit.passwordFrom`）
