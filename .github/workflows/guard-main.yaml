@@ -5,7 +5,10 @@ name: Guard main
 # required status check として機械的に強制する。
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    # edited も拾う: dev 向けに開いた PR の base を後から main へ付け替える経路が
+    # あり、これを取りこぼすと必須チェックが「未報告」で止まるだけになって
+    # 理由が出ない。edited で走らせれば ::error:: で対処まで表示できる。
+    types: [opened, reopened, synchronize, edited]
     branches: [main]
 
 permissions:
