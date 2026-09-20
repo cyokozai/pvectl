@@ -1,0 +1,14 @@
+# Code owners for pvectl
+#
+# pvectl currently has a single maintainer, who reviews and merges every
+# pull request. There is therefore one catch-all rule rather than
+# per-directory ownership; splitting it would only create the false
+# impression that reviews are distributed.
+#
+# When a second maintainer joins, add per-area rules below the catch-all
+# (later matches win in CODEOWNERS) instead of editing this line.
+#
+# See the "Review and merge" section of CONTRIBUTING.md for how review
+# and merge currently work.
+
+*   @cyokozai

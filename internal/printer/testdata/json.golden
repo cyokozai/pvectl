@@ -1,0 +1,14 @@
+[
+  {
+    "kind": "VirtualMachine",
+    "name": "web-server",
+    "status": "running",
+    "node": "pve1"
+  },
+  {
+    "kind": "VirtualMachine",
+    "name": "db",
+    "status": "stopped",
+    "node": "pve2"
+  }
+]

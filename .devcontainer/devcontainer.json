@@ -1,0 +1,15 @@
+{
+  "name": "pvectl Dev",
+  "dockerComposeFile": "../compose.yaml",
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "customizations": {
+    "vscode": {
+      "extensions": ["golang.go"],
+      "settings": {
+        "go.toolsManagement.autoUpdate": false,
+        "editor.formatOnSave": true
+      }
+    }
+  }
+}

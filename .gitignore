@@ -13,6 +13,9 @@
 *.dylib
 app/tmp/*
 
+# Cross-build output (`make cross-build`)
+/dist/
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -52,6 +55,10 @@ go.work
 
 .env
 
-main
+# Built binaries at repo root only (anchored so cmd/pvectl/ is not ignored)
+/main
 
-pvectl
+/pvectl
+# Claude Code: agent worktrees and local settings
+/.claude/worktrees/
+/.claude/settings.local.json

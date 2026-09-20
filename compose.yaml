@@ -1,8 +1,17 @@
 services:
-  app:
-    build: .
+  dev:
+    build:
+      context: .
+      target: dev
     container_name: pvectl-dev
     volumes:
-      - ./app:/home/app
-    tty: true
-    stdin_open: true
+      - .:/workspace:cached
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+    working_dir: /workspace
+    environment:
+      - CGO_ENABLED=0
+
+volumes:
+  go-mod-cache:
+  go-build-cache:

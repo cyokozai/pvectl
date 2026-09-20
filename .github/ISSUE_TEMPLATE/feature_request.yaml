@@ -1,0 +1,87 @@
+name: 新機能・改良要望
+description: 今はできないことを、できるようにしてほしいときはこちら
+title: "[要望] "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### どちらを選べばよいか迷ったら
+
+        - **バグ報告** … 本来できるはずのことができない、表示や動きがおかしい
+        - **新機能・改良要望**（このテンプレート） … 今はできないことを、できるようにしてほしい
+
+        迷ったらこのままで構いません。こちらで振り分けます。
+
+        pvectl は扱う範囲を意図的に狭くしているため、有用でもお断りすることがあります。
+        判断の基準は
+        [CONTRIBUTING.jp.md](https://github.com/cyokozai/pvectl/blob/main/CONTRIBUTING.jp.md)
+        にありますが、**先に読む必要はありません。** 要望はそのまま書いてください。
+
+  - type: dropdown
+    id: target-feature
+    attributes:
+      label: どの機能についての要望ですか
+      description: いちばん近いものを選んでください。
+      options:
+        - get / describe（表示系）
+        - apply / diff（宣言的な適用）
+        - delete
+        - start / stop（電源操作）
+        - exec（ゲスト内コマンド実行）
+        - migrate（ノード間移動）
+        - config（設定・コンテキスト）
+        - completion / version
+        - マニフェスト（spec）の書き方
+        - 新しいリソース種別（Container / Storage / Network など）
+        - わからない・全体のこと
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 困っていること・そうしたい理由
+      description: |
+        解決策ではなく、**困っていること**から書いてください。どういう場面で手が止まるのかが
+        分かると、想定していなかった解き方が見つかることもあります。
+      placeholder: VM を 10 台まとめて作るとき、1 台ごとにマニフェストを書き分けるのが大変
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: こうなってほしい
+      description: コマンドやマニフェストの形が思い浮かんでいれば、その例も書いてください。
+      placeholder: |
+        例: pvectl apply -f vms/ で、ディレクトリ内のマニフェストをまとめて適用したい
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 今はどうやって対応していますか（任意）
+      description: 手作業、シェルスクリプト、Web UI、`spec.raw` など。回避できていない場合は「できていない」で構いません。
+    validations:
+      required: false
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: 急ぎ度
+      options:
+        - すぐに必要
+        - 近いうちに
+        - いつでもよい
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 参考資料・補足（任意）
+      description: 他のツール（kubectl / KubeVirt / Terraform provider など）での扱い、参考リンク、関連する issue など。
+    validations:
+      required: false

@@ -1,0 +1,37 @@
+# Multiple resources in one file, applied in order:
+#   pvectl apply -f examples/multi.yaml
+apiVersion: pve.io/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: web-1
+spec:
+  targetNode: pve-node1
+  resources:
+    cpu:
+      cores: 2
+    memory: 2048
+  disks:
+    - name: scsi0
+      size: 32G
+      storage: local-lvm
+  networks:
+    - name: net0
+      bridge: vmbr0
+---
+apiVersion: pve.io/v1alpha1
+kind: VirtualMachine
+metadata:
+  name: web-2
+spec:
+  targetNode: pve-node2
+  resources:
+    cpu:
+      cores: 2
+    memory: 2048
+  disks:
+    - name: scsi0
+      size: 32G
+      storage: local-lvm
+  networks:
+    - name: net0
+      bridge: vmbr0
