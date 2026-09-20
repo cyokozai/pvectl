@@ -48,7 +48,7 @@ jobs:
           fi
           echo "tag ${GITHUB_REF_NAME} (${GITHUB_SHA}) is reachable from main"
 
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       # Same flags as the CI `test` job, minus the coverage gate: a release
@@ -73,7 +73,7 @@ jobs:
           # the checkout. Keep this identical to the `verify` job's checkout
           # rather than tuning it: the two must agree on what was inspected.
           fetch-depth: 0
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 

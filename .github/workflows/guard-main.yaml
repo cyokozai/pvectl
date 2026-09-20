@@ -1,0 +1,33 @@
+name: Guard main
+
+# main への変更は dev からの PR だけに限る。GitHub の ruleset には
+# 「特定の branch からの PR だけ受け付ける」というルールが存在しないため、
+# required status check として機械的に強制する。
+on:
+  pull_request:
+    # edited も拾う: dev 向けに開いた PR の base を後から main へ付け替える経路が
+    # あり、これを取りこぼすと必須チェックが「未報告」で止まるだけになって
+    # 理由が出ない。edited で走らせれば ::error:: で対処まで表示できる。
+    types: [opened, reopened, synchronize, edited]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  guard-main:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # checkout も action も要らない。判定材料は github.head_ref だけなので、
+      # 依存を持たないぶんこの形が最も堅い。head_ref はシェルに直接展開せず
+      # 環境変数を経由させる（スクリプトインジェクション対策）。
+      - name: head branch must be dev
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" != "dev" ]; then
+            echo "::error::この PR の head branch は '${HEAD_REF}' です。main へのマージは dev からの PR だけに限っています。作業ブランチは dev に向けて出し直してください（base を dev に変更するか、dev から PR を作り直す）。main への PR はリリース時の dev -> main のみです。"
+            exit 1
+          fi
+          echo "head branch is 'dev': main への PR として妥当です"

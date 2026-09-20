@@ -1,14 +1,42 @@
 version: 2
+# 依存更新の PR は既定ブランチ（main）ではなく dev に向ける。
+# main はリリース済みバージョンを指す（docs/prd.md「バージョンと分岐の関係」）ため、
+# GitHub のトップページや `go install` の解決先としては main が既定のままであるべきで、
+# 既定ブランチを dev に変える案は採らない。dependabot の宛先だけを dev に変更する。
+#
+# あわせて groups で PR を束ねる。同じファイルを触る PR が複数並ぶと、1 本マージする
+# たびに残りが再衝突する（2026-09-20 実害: github-actions の 3 本が並び #28 が
+# CONFLICTING になった）。1 本にまとめれば連鎖が構造的に消える。
 updates:
   - package-ecosystem: gomod
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
+    groups:
+      # minor / patch は互換性が保たれる前提なのでまとめて 1 本にする。
+      # major はここに含めない: 破壊的変更を含みうるため、束ねると CI が落ちた
+      # ときにどの依存が原因かを切り分けられなくなる。major は個別 PR のまま残す。
+      go-minor-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
+    groups:
+      # action は全員が ci.yaml / release.yaml という同じ少数のファイルを触るので、
+      # 分けても衝突が増えるだけ。major も含めて 1 グループにまとめる。
+      github-actions:
+        patterns: ["*"]
   - package-ecosystem: docker
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
+    groups:
+      # 対象は Dockerfile の golang:*-alpine 1 つだけなので実質 1 本だが、
+      # 対象が増えたときに自動でまとまるよう他の ecosystem と書式を揃えておく。
+      docker:
+        patterns: ["*"]
