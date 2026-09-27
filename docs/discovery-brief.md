@@ -5,7 +5,7 @@
 
 ```mermaid
 flowchart LR
-    J["JTBD<br/>J1 収束 / J2 取り込み / J3 日々の操作"] --> P["ペルソナ<br/>P1 筋肉記憶 / P2 手で育ったクラスタ / P3 SSH 運用者 / P4 共存"]
+    J["JTBD<br/>J1 収束 / J2 取り込み / J3 日々の操作"] --> P["ペルソナ<br/>P1 筋肉記憶 / P2 手で育ったクラスタ / P3 SSH 運用者 / P4 共存 / P5 借りて返すエージェント"]
     P --> D["差別化 4 本柱<br/>D1 宣言キー / D2 state 無し / D3 宣言+命令 / D4 export"]
     D --> N["NSM: export→apply が<br/>全件 unchanged の報告数"]
     N --> R["ロードマップ判定基準<br/>P2 の入口を開けるものが最優先"]
@@ -15,7 +15,7 @@ flowchart LR
 
 ## 1. Problem Statement
 
-- **対象ユーザー**: P2「手で育ったクラスタを抱える小規模チームの担当者」を主、P1「平日 k8s・週末 Proxmox」を早期採用者、P3「SSH で `qm` を叩く運用者」を入口とする
+- **対象ユーザー**: P2「手で育ったクラスタを抱える小規模チームの担当者」を主、P1「平日 k8s・週末 Proxmox」を早期採用者、P3「SSH で `qm` を叩く運用者」を入口とする。P5「使い捨て VM を借りて返す AI エージェント」を 2026-09-27 に追加（[ADR-009](adr/ADR-009-ownership-scope-and-ip-column.md)）
 - **ジョブ**: J1 収束 / **J2 既存クラスタの取り込み** / J3 日々の操作。既存手段はどれも 3 つを同時に満たさない
 - **既存の選択肢が不十分な理由**: Terraform は J1 に特化し J3 を原理的に持たない。`terraform import` は state に取り込むだけで J2 を片付けない。`qm` はノード上でしか動かない
 
@@ -58,6 +58,7 @@ flowchart LR
 | A2 の検証（コミュニティへの 1 問） | P0 | 実装前に打てる。外れれば P0 の順序が変わる |
 | M2 LXC（`kind: Container`） | P1 | 既存層の適用範囲拡大。競合も持つ領域 |
 | M3 以降（Storage / Network / Snapshot） | P2 | SDN の二段階コミットは D3 の実証材料になる |
+| P5 向け: context `pool` + delete ガード（実験的）+ `-o wide` IP 列 | P1 | ADR-009。所有権表明の最初の形で、後の `--prune` 判断の土台にもなる。版の割り当ては Q1 と合わせて裁定 |
 | 大量生成・`--prune`・同時実行ロック | **Won't** | 非ターゲット層のためだけの機能（ADR-005 非目標） |
 
 ## 6. Key Risks & Open Questions
@@ -69,7 +70,7 @@ flowchart LR
 
 ## 7. Next Steps
 
-- [ ] Q1 の裁定（export 先行か、PRD 通り LXC 先行か）
+- [ ] Q1 の裁定（export 先行か、PRD 通り LXC 先行か）。ADR-009 の 3 点をどの版に載せるかも同時に決める
 - [ ] 裁定後、README の Why / PRD §1・§7 / ADR-005 追補への反映を worktree の PR として起こす
 - [ ] A2 の検証を 1 問で打つ
 - [ ] 実装設計が要る段階で arch-requirements へ引き渡す
