@@ -2,10 +2,12 @@ package lxc
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
-const testSHA = "3f2a9c0d1e4b5a6978877665544332211ffeeddccbbaa99887766554433221100"
+// testSHA is a 64-digit digest whose first 16 digits are 3f2a9c0d1e4b5a69.
+const testSHA = "3f2a9c0d1e4b5a69" + "0123456789abcdef" + "0123456789abcdef" + "0123456789abcdef"
 
 func TestDerivedVolID(t *testing.T) {
 	tests := []struct {
@@ -31,7 +33,7 @@ func TestDerivedVolID(t *testing.T) {
 			"uppercase digest is lowered so the name is stable",
 			OSTemplate{
 				URL:     "https://download.example/alpine.tar.xz",
-				SHA256:  "3F2A9C0D1E4B5A6978877665544332211FFEEDDCCBBAA99887766554433221100",
+				SHA256:  strings.ToUpper(testSHA),
 				Storage: "nfs-tmpl",
 			},
 			"nfs-tmpl:vztmpl/pvectl-3f2a9c0d1e4b5a69-alpine.tar.xz",
