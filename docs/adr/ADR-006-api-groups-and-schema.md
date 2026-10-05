@@ -27,7 +27,7 @@ M1〜M2 は `pve.io/v1alpha1` 単一で進める。分割の基準は **「書�
 
 | グループ | kind | 書き込みの性質 |
 |---|---|---|
-| `pve.io/v1alpha1`（core） | VirtualMachine, Container | ゲスト単位の PUT |
+| `pve.io/v1alpha1`（core） | VirtualMachine, LinuxContainer（ADR-010 で `Container` から改名） | ゲスト単位の PUT |
 | `sdn.pve.io/v1alpha1` | Zone, VNet, Subnet | pending + reload の二段階 |
 | `access.pve.io/v1alpha1` | User, Token, Role, ACL, Pool | 集合の調停（差分ではなく set） |
 | `storage.pve.io/v1alpha1` | Storage | クラスタ全体設定 |
