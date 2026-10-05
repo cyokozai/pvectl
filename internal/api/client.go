@@ -46,6 +46,14 @@ type GuestSummary struct {
 	Uptime int64
 }
 
+// StorageVolume is one row of /nodes/{node}/storage/{storage}/content.
+type StorageVolume struct {
+	VolID   string
+	Content string
+	Format  string
+	Size    uint64
+}
+
 // GuestRef identifies a guest precisely enough to build API paths.
 type GuestRef struct {
 	VMID int
@@ -96,6 +104,27 @@ type Client interface {
 	// CloneQemu clones src; params take the raw clone endpoint keys
 	// (newid, name, target, full, pool, description) and waits.
 	CloneQemu(ctx context.Context, src *GuestRef, params map[string]any) error
+
+	// LxcConfig returns the raw current config of an lxc container.
+	// (GET /nodes/{node}/lxc/{vmid}/config)
+	LxcConfig(ctx context.Context, ref *GuestRef) (map[string]any, error)
+	// CreateLxc creates a container from flat Proxmox params and waits
+	// for the task. vmid is sent as part of the params.
+	// (POST /nodes/{node}/lxc)
+	CreateLxc(ctx context.Context, node string, vmid int, params map[string]any) error
+	// UpdateLxcConfig PUTs the given keys to the container config and
+	// waits if a task is returned; Proxmox usually answers null here.
+	// (PUT /nodes/{node}/lxc/{vmid}/config)
+	UpdateLxcConfig(ctx context.Context, ref *GuestRef, params map[string]any) error
+
+	// StorageContent lists volumes on a storage, filtered by content type
+	// ("vztmpl" etc.). (GET /nodes/{node}/storage/{storage}/content?content=...)
+	StorageContent(ctx context.Context, node, storage, content string) ([]StorageVolume, error)
+	// DownloadURL asks the node to download a file into the storage and
+	// waits for the task. params take the raw endpoint keys: content,
+	// filename, url, checksum, checksum-algorithm.
+	// (POST /nodes/{node}/storage/{storage}/download-url)
+	DownloadURL(ctx context.Context, node, storage string, params map[string]any) error
 
 	// DeleteGuest removes a guest and waits for the task.
 	DeleteGuest(ctx context.Context, ref *GuestRef) error

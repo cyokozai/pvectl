@@ -30,9 +30,10 @@ var sensitiveHeaders = map[string]bool{
 // sensitiveKeys are body and parameter keys whose value is a
 // credential. Compared lowercase.
 var sensitiveKeys = map[string]bool{
-	"password":            true, // login body
+	"password":            true, // login body; also the lxc create-time root password
 	"cipassword":          true, // cloud-init password on a VM config
 	"sshkeys":             true, // cloud-init keys; urlencoded blob, never useful in a report
+	"ssh-public-keys":     true, // lxc create-time root keys, same reasoning as sshkeys
 	"ticket":              true, // /access/ticket response
 	"csrfpreventiontoken": true, // /access/ticket response
 	"pveauthcookie":       true,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/Telmate/proxmox-api-go/proxmox"
@@ -325,4 +326,93 @@ func splitTags(s string) []string {
 		return nil
 	}
 	return strings.Split(s, ";")
+}
+
+// --- LXC and storage (M2, ADR-010) ---
+
+func (t *telmateClient) LxcConfig(ctx context.Context, ref *GuestRef) (map[string]any, error) {
+	cfg, err := t.c.GetItemConfigMapStringInterface(ctx,
+		fmt.Sprintf("/nodes/%s/lxc/%d/config", ref.Node, ref.VMID), "container", "CONFIG")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config of container %d: %w", ref.VMID, err)
+	}
+	return cfg, nil
+}
+
+func (t *telmateClient) CreateLxc(ctx context.Context, node string, vmid int, params map[string]any) error {
+	body := make(map[string]any, len(params)+1)
+	for k, v := range params {
+		body[k] = v
+	}
+	body["vmid"] = vmid
+	path := fmt.Sprintf("/nodes/%s/lxc", node)
+	done := t.task("POST "+path, body)
+	_, err := t.c.PostWithTask(ctx, body, path)
+	done(err)
+	if err != nil {
+		return fmt.Errorf("failed to create container %d on %s: %w", vmid, node, err)
+	}
+	return nil
+}
+
+// UpdateLxcConfig relies on the SDK treating "data": null as a finished
+// call: unlike qemu, the lxc config PUT is applied synchronously and
+// usually answers without a UPID. When a UPID does come back, the SDK
+// waits for it.
+func (t *telmateClient) UpdateLxcConfig(ctx context.Context, ref *GuestRef, params map[string]any) error {
+	path := fmt.Sprintf("/nodes/%s/lxc/%d/config", ref.Node, ref.VMID)
+	done := t.task("PUT "+path, params)
+	_, err := t.c.PutWithTask(ctx, params, path)
+	done(err)
+	if err != nil {
+		return fmt.Errorf("failed to update config of container %d: %w", ref.VMID, err)
+	}
+	return nil
+}
+
+func (t *telmateClient) StorageContent(ctx context.Context, node, storage, content string) ([]StorageVolume, error) {
+	path := fmt.Sprintf("/nodes/%s/storage/%s/content", node, storage)
+	if content != "" {
+		path += "?content=" + url.QueryEscape(content)
+	}
+	body, err := t.raw().Get(ctx, path)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, fmt.Errorf("failed to list content of storage %s on %s: %w", storage, node, err)
+	}
+	if body["data"] == nil {
+		return nil, nil
+	}
+	rows, ok := body["data"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("content of storage %s on %s: unexpected response %v", storage, node, body)
+	}
+	vols := make([]StorageVolume, 0, len(rows))
+	for _, item := range rows {
+		row, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		vols = append(vols, StorageVolume{
+			VolID:   asString(row["volid"]),
+			Content: asString(row["content"]),
+			Format:  asString(row["format"]),
+			Size:    uint64(asFloat(row["size"])),
+		})
+	}
+	t.log.Logf(verbose.LevelResolve, "storage %s on %s holds %d %q volumes", storage, node, len(vols), content)
+	return vols, nil
+}
+
+func (t *telmateClient) DownloadURL(ctx context.Context, node, storage string, params map[string]any) error {
+	path := fmt.Sprintf("/nodes/%s/storage/%s/download-url", node, storage)
+	done := t.task("POST "+path, params)
+	_, err := t.c.PostWithTask(ctx, params, path)
+	done(err)
+	if err != nil {
+		return fmt.Errorf("failed to download %v into storage %s on %s: %w", params["filename"], storage, node, err)
+	}
+	return nil
 }
