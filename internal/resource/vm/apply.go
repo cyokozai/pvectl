@@ -307,12 +307,16 @@ func (h *Handler) planUpdate(name string, current, desired map[string]any, d dif
 	var resizes []resizeOp
 
 	for _, e := range d.Entries {
+		curRaw, exists := current[e.Key]
+		if rxNetKey.MatchString(e.Key) && exists {
+			put[e.Key] = mergeNetValue(fmt.Sprintf("%v", curRaw), fmt.Sprintf("%v", desired[e.Key]))
+			continue
+		}
 		if !rxDiskKey.MatchString(e.Key) {
 			put[e.Key] = desired[e.Key]
 			continue
 		}
 
-		curRaw, exists := current[e.Key]
 		if !exists {
 			// New disk slot: allocation syntax works on config PUT.
 			put[e.Key] = desired[e.Key]
@@ -344,6 +348,28 @@ func (h *Handler) planUpdate(name string, current, desired map[string]any, d dif
 		}
 	}
 	return put, resizes, nil
+}
+
+// mergeNetValue lays the written NIC sub-keys over the live ones. A
+// config PUT replaces the whole netN value, so anything the manifest
+// does not write — the MAC first of all, then firewall, queues, mtu,
+// link_down, rate, ... — is carried over from live; otherwise Proxmox
+// would hand out a new MAC (ADR-005). A MAC the manifest does pin wins.
+func mergeNetValue(curStr, desStr string) string {
+	cur, des := parseNetValue(curStr), parseNetValue(desStr)
+	merged := cur.Opts
+	for k, v := range des.Opts {
+		merged[k] = v
+	}
+	mac := cur.MAC
+	if des.MAC != "" {
+		mac = des.MAC
+	}
+	head := des.Model
+	if mac != "" {
+		head += "=" + mac
+	}
+	return head + optsSuffix(merged)
 }
 
 // rebuildDiskValue merges the manifest's disk options onto the existing
