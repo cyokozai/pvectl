@@ -85,6 +85,7 @@ spec:
 
 - 宣言したキーだけを扱う（ADR-005）。`features` は書いたサブキーだけを比較し、書かなかったサブキーは live に残す
 - NIC の `hwaddr` は Proxmox が生成する値なので、マニフェストに書いた場合だけ比較する（VM の `macaddr` と同じ）
+- config の PUT は `netN` / `features` の値を丸ごと置き換える。そのため更新時は、**書いていない live のサブキー（`hwaddr` など）を引き継いで** PUT する。引き継がないと NIC を更新するたびに MAC が振り直される
 - `interface` の既定値は、VM の `model: virtio` と同じく「書いた NIC エントリの中のサブキーの既定」であり、NIC そのものを補うものではない
 
 ### 3. `unprivileged` は必須にする
@@ -120,6 +121,7 @@ osTemplate:
 - 取り寄せ先は `targetNode`。ストレージが共有でない場合に、作成するノードから読めることを保証するため
 - `--dry-run=server` は「取り寄せが必要か」を報告し、取り寄せない
 - `osTemplate` は **出自の宣言**であり、更新時に live と突き合わせない（LXC の config は作成元を記録しない。VM の `spec.clone` と同じ扱い）。`get -o yaml` は `osTemplate` を出力しない
+- したがって `osTemplate` が必須なのは **create の経路だけ**である。共通の検証で必須にすると、`get -o yaml` の出力を apply する round-trip が成り立たない
 - 取り寄せたテンプレートを pvectl は消さない。ストレージの掃除は pvectl の責務ではない
 - 必要な権限（実機で確定させる）: `download-url` には対象ストレージへの `Datastore.AllocateTemplate` が要り、加えてノードへの `Sys.Audit` / `Sys.Modify` を要求する版がある。不足時は 403 をそのまま返し、メッセージに権限名を添える
 
