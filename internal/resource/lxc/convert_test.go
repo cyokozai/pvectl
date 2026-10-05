@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func intPtr(i int) *int     { return &i }
+func intPtr(i int) *int    { return &i }
 func boolPtr(b bool) *bool { return &b }
 
 // fullSpec exercises every convertible field.
