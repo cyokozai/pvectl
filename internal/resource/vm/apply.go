@@ -308,8 +308,14 @@ func (h *Handler) planUpdate(name string, current, desired map[string]any, d dif
 
 	for _, e := range d.Entries {
 		curRaw, exists := current[e.Key]
-		if rxNetKey.MatchString(e.Key) && exists {
-			put[e.Key] = mergeNetValue(fmt.Sprintf("%v", curRaw), fmt.Sprintf("%v", desired[e.Key]))
+		if rxNetKey.MatchString(e.Key) {
+			// A new slot merges onto nothing, which still strips the
+			// empty sub-keys that stand for `tag: 0`.
+			curStr := ""
+			if exists {
+				curStr = fmt.Sprintf("%v", curRaw)
+			}
+			put[e.Key] = mergeNetValue(curStr, fmt.Sprintf("%v", desired[e.Key]))
 			continue
 		}
 		if !rxDiskKey.MatchString(e.Key) {
@@ -355,10 +361,16 @@ func (h *Handler) planUpdate(name string, current, desired map[string]any, d dif
 // does not write — the MAC first of all, then firewall, queues, mtu,
 // link_down, rate, ... — is carried over from live; otherwise Proxmox
 // would hand out a new MAC (ADR-005). A MAC the manifest does pin wins.
+// A sub-key written with an empty value is declared absent (`tag: 0`)
+// and is removed instead of carried over.
 func mergeNetValue(curStr, desStr string) string {
 	cur, des := parseNetValue(curStr), parseNetValue(desStr)
 	merged := cur.Opts
 	for k, v := range des.Opts {
+		if v == "" {
+			delete(merged, k)
+			continue
+		}
 		merged[k] = v
 	}
 	mac := cur.MAC

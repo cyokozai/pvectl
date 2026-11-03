@@ -62,6 +62,9 @@ func validateSpec(name string, spec *Spec) error {
 		if net.Bridge == "" {
 			errs = append(errs, where+".bridge is required")
 		}
+		if net.Tag != nil && (*net.Tag < 0 || *net.Tag > 4094) {
+			errs = append(errs, fmt.Sprintf("%s.tag %d must be 1-4094, or 0 for no tag", where, *net.Tag))
+		}
 	}
 
 	if ci := spec.CloudInit; ci != nil {

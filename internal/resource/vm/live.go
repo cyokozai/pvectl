@@ -141,13 +141,17 @@ func diskFromValue(key, value string) (Disk, bool) {
 
 func netFromValue(key, value string) Network {
 	n := parseNetValue(value)
-	tag, _ := strconv.Atoi(n.Opts["tag"])
-	return Network{
+	net := Network{
 		Name:   key,
 		Bridge: n.Opts["bridge"],
 		Model:  n.Model,
-		Tag:    tag,
 	}
+	// An untagged NIC leaves tag out rather than writing `tag: 0`: the
+	// output then stays round-trippable without claiming the key.
+	if tag, err := strconv.Atoi(n.Opts["tag"]); err == nil && tag > 0 {
+		net.Tag = &tag
+	}
+	return net
 }
 
 // bytesToSizeString renders bytes the way manifests write sizes.

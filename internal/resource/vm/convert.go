@@ -173,6 +173,9 @@ func desiredParams(name string, spec *Spec) map[string]any {
 	for _, disk := range spec.Disks {
 		params[disk.Name] = diskAllocationValue(disk)
 	}
+	for _, net := range spec.Networks {
+		params[net.Name] = desiredNetworkValue(net)
+	}
 	mergeRaw(params, spec)
 	return params
 }
@@ -206,8 +209,20 @@ func networkValue(net Network) string {
 		model = "virtio"
 	}
 	value := model + ",bridge=" + net.Bridge
-	if net.Tag > 0 {
-		value += fmt.Sprintf(",tag=%d", net.Tag)
+	if net.Tag != nil && *net.Tag > 0 {
+		value += fmt.Sprintf(",tag=%d", *net.Tag)
+	}
+	return value
+}
+
+// desiredNetworkValue is networkValue for the diff input. `tag: 0` is
+// written as an empty "tag=" so the diff and the update know the key is
+// managed and must be absent; the empty value never reaches the API —
+// canonicalNet drops it and mergeNetValue removes the key.
+func desiredNetworkValue(net Network) string {
+	value := networkValue(net)
+	if net.Tag != nil && *net.Tag == 0 {
+		value += ",tag="
 	}
 	return value
 }

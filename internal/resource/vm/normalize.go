@@ -182,7 +182,9 @@ func canonicalNet(n netValue, managedOpts []string, includeMAC bool) string {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		if v, ok := n.Opts[k]; ok {
+		// An empty value is a managed key declared absent (`tag: 0`),
+		// so it renders the same as a live value without the key.
+		if v, ok := n.Opts[k]; ok && v != "" {
 			parts = append(parts, k+"="+v)
 		}
 	}
