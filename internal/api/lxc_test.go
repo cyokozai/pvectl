@@ -270,3 +270,55 @@ func TestStorageContentFailure(t *testing.T) {
 		t.Fatalf("StorageContent() on cancelled context error = %v, want context.Canceled", err)
 	}
 }
+
+// TestDownloadURLNeverLogsURL drives download-url at the most verbose
+// level, on success and on a failed task. The source URL may carry
+// credentials (a signed query string, userinfo), so its value must not
+// reach the output, nor the returned error, by any route.
+func TestDownloadURLNeverLogsURL(t *testing.T) {
+	urls := map[string]string{
+		"signed query": "https://example.test/path/img.tar.zst?X-Amz-Signature=secret123",
+		"userinfo":     "https://user:pass@example.test/path/img.tar.zst",
+	}
+	for name, src := range urls {
+		for _, fail := range []bool{false, true} {
+			t.Run(name+map[bool]string{false: "/success", true: "/failure"}[fail], func(t *testing.T) {
+				s := newTestServer(t)
+				var buf bytes.Buffer
+				c, err := New(context.Background(),
+					config.Node{Server: s.URL()},
+					config.User{Token: testToken},
+					Options{TaskTimeout: 10 * time.Second, Logger: verbose.New(verbose.LevelFullBody, &buf)},
+				)
+				if err != nil {
+					t.Fatalf("New() error = %v", err)
+				}
+				if fail {
+					s.FailNext("download", "checksum verification failed")
+				}
+
+				err = c.DownloadURL(context.Background(), "pve1", "local", map[string]any{
+					"content":  "vztmpl",
+					"filename": "pvectl-img.tar.zst",
+					"url":      src,
+				})
+				if fail != (err != nil) {
+					t.Fatalf("DownloadURL() error = %v, want failure %v", err, fail)
+				}
+
+				got := buf.String()
+				if err != nil {
+					got += "\nerror: " + err.Error()
+				}
+				for _, secret := range []string{src, "secret123", "user:pass", "example.test"} {
+					if strings.Contains(got, secret) {
+						t.Errorf("url fragment %q reached -v=9 output or the error:\n%s", secret, got)
+					}
+				}
+				if !strings.Contains(got, "url=REDACTED") {
+					t.Errorf("url not logged as redacted:\n%s", got)
+				}
+			})
+		}
+	}
+}

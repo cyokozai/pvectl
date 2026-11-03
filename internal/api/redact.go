@@ -34,6 +34,7 @@ var sensitiveKeys = map[string]bool{
 	"cipassword":          true, // cloud-init password on a VM config
 	"sshkeys":             true, // cloud-init keys; urlencoded blob, never useful in a report
 	"ssh-public-keys":     true, // lxc create-time root keys, same reasoning as sshkeys
+	"url":                 true, // download-url source; a signed query string or userinfo authenticates
 	"ticket":              true, // /access/ticket response
 	"csrfpreventiontoken": true, // /access/ticket response
 	"pveauthcookie":       true,
