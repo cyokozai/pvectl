@@ -823,3 +823,204 @@ func TestApplyUpdateKeepsUnwrittenNICSubKeys(t *testing.T) {
 		}
 	})
 }
+
+// TestApplyNICUntagged: `tag: 0` declares "no VLAN tag", which is
+// distinct from leaving tag out (unmanaged, live kept as is). Without
+// it there is no way to take a tag off through the manifest.
+func TestApplyNICUntagged(t *testing.T) {
+	const liveNet0 = "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0,tag=100"
+	untagged := strings.Replace(existingVMManifest, "tag: 100", "tag: 0", 1)
+	omitted := strings.Replace(existingVMManifest, "      tag: 100\n", "", 1)
+
+	t.Run("tag 0 removes a live tag and keeps the MAC", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["net0"] = liveNet0
+		res, err := apply(t, f, untagged, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if res.Action != resource.ActionConfigured {
+			t.Fatalf("Action = %v, want configured", res.Action)
+		}
+		if res.Diff == nil || len(res.Diff.Entries) != 1 || res.Diff.Entries[0].Key != "net0" {
+			t.Fatalf("Diff = %+v, want only net0", res.Diff)
+		}
+		if e := res.Diff.Entries[0]; !strings.Contains(e.Current, "tag=100") || strings.Contains(e.Desired, "tag") {
+			t.Errorf("Diff entry = %+v, want live tag=100 against no tag", e)
+		}
+		if len(f.Updates) != 1 {
+			t.Fatalf("Updates = %+v", f.Updates)
+		}
+		if got := f.Updates[0].Params["net0"]; got != "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0" {
+			t.Errorf("net0 = %#v, want the MAC kept and the tag dropped", got)
+		}
+	})
+
+	t.Run("tag 0 against an untagged NIC is unchanged", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["net0"] = "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0"
+		res, err := apply(t, f, untagged, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if res.Action != resource.ActionUnchanged {
+			t.Errorf("Action = %v, want unchanged (diff %+v)", res.Action, res.Diff)
+		}
+	})
+
+	t.Run("omitted tag is unmanaged and the live tag stays", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["net0"] = liveNet0
+		res, err := apply(t, f, omitted, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if res.Action != resource.ActionUnchanged {
+			t.Errorf("Action = %v, want unchanged (diff %+v)", res.Action, res.Diff)
+		}
+	})
+
+	t.Run("omitted tag keeps the live tag when another sub-key changes", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["net0"] = liveNet0
+		doc := strings.Replace(omitted, "bridge: vmbr0", "bridge: vmbr1", 1)
+		if _, err := apply(t, f, doc, resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Updates) != 1 {
+			t.Fatalf("Updates = %+v", f.Updates)
+		}
+		if got := f.Updates[0].Params["net0"]; got != "virtio=BC:24:11:AA:BB:CC,bridge=vmbr1,tag=100" {
+			t.Errorf("net0 = %#v, want the live tag kept", got)
+		}
+	})
+
+	t.Run("pvectl diff shows the tag being removed", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["net0"] = liveNet0
+		res, err := NewHandler().Diff(context.Background(), f, manifest(t, untagged))
+		if err != nil {
+			t.Fatalf("Diff() error = %v", err)
+		}
+		if len(res.Entries) != 1 || res.Entries[0].Key != "net0" {
+			t.Fatalf("Diff = %+v, want only net0", res.Entries)
+		}
+		var sb strings.Builder
+		if err := res.Render(&sb); err != nil {
+			t.Fatal(err)
+		}
+		out := sb.String()
+		if !strings.Contains(out, "-net0: model=virtio,bridge=vmbr0,tag=100\n") ||
+			!strings.Contains(out, "+net0: model=virtio,bridge=vmbr0\n") {
+			t.Errorf("rendered diff =\n%s", out)
+		}
+	})
+
+	t.Run("a new NIC slot with tag 0 is written without a tag", func(t *testing.T) {
+		f := seededFake()
+		doc := strings.Replace(existingVMManifest, "      tag: 100\n",
+			"      tag: 100\n    - name: net1\n      bridge: vmbr1\n      tag: 0\n", 1)
+		if _, err := apply(t, f, doc, resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Updates) != 1 {
+			t.Fatalf("Updates = %+v", f.Updates)
+		}
+		if got := f.Updates[0].Params["net1"]; got != "virtio,bridge=vmbr1" {
+			t.Errorf("net1 = %#v, want no tag", got)
+		}
+	})
+
+	t.Run("create with tag 0 sends no tag", func(t *testing.T) {
+		f := seededFake()
+		doc := newVMManifest + "  networks:\n    - name: net0\n      bridge: vmbr0\n      tag: 0\n"
+		if _, err := apply(t, f, doc, resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Creates) != 1 {
+			t.Fatalf("Creates = %+v", f.Creates)
+		}
+		if got := f.Creates[0].Params["net0"]; got != "virtio,bridge=vmbr0" {
+			t.Errorf("net0 = %#v, want no tag", got)
+		}
+	})
+
+	t.Run("round-trip of an untagged NIC stays unchanged", func(t *testing.T) {
+		h := NewHandler()
+		f := seededFake()
+		f.Configs[100]["net0"] = "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0"
+		obj, err := h.Get(context.Background(), f, "web-server")
+		if err != nil {
+			t.Fatalf("Get() error = %v", err)
+		}
+		data, err := yaml.Marshal(obj)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "tag:") {
+			t.Errorf("get -o yaml of an untagged NIC must not write tag\n%s", data)
+		}
+		res, err := apply(t, f, string(data), resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply(get output) error = %v", err)
+		}
+		if res.Action != resource.ActionUnchanged {
+			t.Errorf("round-trip Action = %v, want unchanged (diff %+v)", res.Action, res.Diff)
+		}
+	})
+}
+
+// TestDecodeNICTagZeroVersusOmitted: the two must stay distinguishable
+// after decoding, since they mean opposite things.
+func TestDecodeNICTagZeroVersusOmitted(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		doc  string
+		want *int
+	}{
+		{"omitted", strings.Replace(existingVMManifest, "      tag: 100\n", "", 1), nil},
+		{"zero", strings.Replace(existingVMManifest, "tag: 100", "tag: 0", 1), intPtr(0)},
+		{"set", existingVMManifest, intPtr(100)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			spec, err := decodeSpec(manifest(t, tc.doc))
+			if err != nil {
+				t.Fatalf("decodeSpec() error = %v", err)
+			}
+			got := spec.Networks[0].Tag
+			switch {
+			case tc.want == nil && got != nil:
+				t.Errorf("Tag = %d, want nil", *got)
+			case tc.want != nil && (got == nil || *got != *tc.want):
+				t.Errorf("Tag = %v, want %d", got, *tc.want)
+			}
+		})
+	}
+}
+
+func TestApplyNICTagRange(t *testing.T) {
+	for _, tc := range []struct {
+		tag     string
+		wantErr bool
+	}{
+		{"-1", true},
+		{"0", false},
+		{"1", false},
+		{"4094", false},
+		{"4095", true},
+	} {
+		t.Run("tag "+tc.tag, func(t *testing.T) {
+			doc := strings.Replace(existingVMManifest, "tag: 100", "tag: "+tc.tag, 1)
+			_, err := apply(t, seededFake(), doc, resource.ApplyOptions{DryRun: resource.DryRunServer})
+			if tc.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "spec.networks[0].tag") {
+					t.Errorf("Apply() error = %v, want a spec.networks[0].tag range error", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("Apply() error = %v, want nil", err)
+			}
+		})
+	}
+}

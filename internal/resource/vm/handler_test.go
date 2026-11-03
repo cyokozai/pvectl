@@ -126,7 +126,7 @@ func TestHandlerGet(t *testing.T) {
 		if len(vm.Spec.Disks) != 1 || vm.Spec.Disks[0].Name != "scsi0" || vm.Spec.Disks[0].Size != "32G" || vm.Spec.Disks[0].Cache != "writeback" {
 			t.Errorf("disks = %+v", vm.Spec.Disks)
 		}
-		if len(vm.Spec.Networks) != 1 || vm.Spec.Networks[0].Bridge != "vmbr0" || vm.Spec.Networks[0].Tag != 100 {
+		if len(vm.Spec.Networks) != 1 || vm.Spec.Networks[0].Bridge != "vmbr0" || vm.Spec.Networks[0].Tag == nil || *vm.Spec.Networks[0].Tag != 100 {
 			t.Errorf("networks = %+v", vm.Spec.Networks)
 		}
 		if vm.Spec.CloudInit == nil || vm.Spec.CloudInit.User != "admin" || len(vm.Spec.CloudInit.SSHKeys) != 1 {
