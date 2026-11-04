@@ -1,7 +1,8 @@
 // Package pvefake is an in-memory fake of the Proxmox VE REST API
 // (/api2/json) for tests. It speaks just enough of the protocol for the
 // Telmate SDK: ticket login, API token auth, cluster resources, qemu
-// config CRUD, lifecycle endpoints, and the async task status endpoint.
+// and lxc config CRUD, lifecycle endpoints, storage content listing and
+// download-url, and the async task status endpoint.
 package pvefake
 
 import (
@@ -50,7 +51,19 @@ type Server struct {
 	execCommands [][]string
 	agentError   string
 
+	// volumes holds storage content per "node/storage".
+	volumes   map[string][]Volume
+	downloads []map[string]any
+
 	requests []string // "METHOD /path", in arrival order
+}
+
+// Volume is one row of /nodes/{node}/storage/{storage}/content.
+type Volume struct {
+	VolID   string
+	Content string // vztmpl | iso | images | import ...
+	Format  string
+	Size    uint64
 }
 
 // ExecScript programs how the fake's QEMU guest agent behaves. The zero
@@ -82,6 +95,7 @@ func New() *Server {
 		taskResults: map[string]string{},
 		execRuns:    map[int]int{},
 		execPID:     1000,
+		volumes:     map[string][]Volume{},
 	}
 	s.Server = httptest.NewServer(http.HandlerFunc(s.handle))
 	return s
@@ -175,8 +189,15 @@ var (
 	rxMigr   = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/(qemu|lxc)/(\d+)/migrate$`)
 	rxExec   = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/qemu/(\d+)/agent/exec$`)
 	rxExecSt = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/qemu/(\d+)/agent/exec-status$`)
-	// rxDiskKey matches the config keys that carry a disk volume.
-	rxDiskKey = regexp.MustCompile(`^(scsi|virtio|sata|ide)\d+$`)
+	// rxDiskKey matches the config keys that carry a disk volume: qemu
+	// buses, and the lxc root filesystem and mount points.
+	rxDiskKey = regexp.MustCompile(`^((scsi|virtio|sata|ide)\d+|rootfs|mp\d+)$`)
+)
+
+// Storage endpoints (M2: LXC os templates).
+var (
+	rxStContent  = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/storage/([^/]+)/content$`)
+	rxStDownload = regexp.MustCompile(`^/api2/json/nodes/([^/]+)/storage/([^/]+)/download-url$`)
 )
 
 // Requests returns every request the fake handled, as "METHOD /path",
@@ -235,6 +256,10 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		s.handleCreate(w, r)
 	case rxGuest.MatchString(path) && r.Method == http.MethodDelete:
 		s.handleDelete(w, r)
+	case rxStContent.MatchString(path) && r.Method == http.MethodGet:
+		s.handleStorageContent(w, r)
+	case rxStDownload.MatchString(path) && r.Method == http.MethodPost:
+		s.handleDownloadURL(w, r)
 	default:
 		http.Error(w, fmt.Sprintf("no handler for %s %s", r.Method, path), http.StatusNotImplemented)
 	}
@@ -309,6 +334,12 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		s.mu.Unlock()
 		if !ok {
+			if m[2] == "lxc" {
+				// A JSON error body, as Proxmox VE sends: the SDK treats it
+				// as final instead of retrying with sleeps in between.
+				writeAPIError(w, fmt.Sprintf("Configuration file 'nodes/%s/lxc/%d.conf' does not exist", m[1], vmid))
+				return
+			}
 			http.Error(w, fmt.Sprintf("Configuration file 'nodes/%s/qemu-server/%d.conf' does not exist", m[1], vmid), http.StatusInternalServerError)
 			return
 		}
@@ -322,13 +353,19 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 				g.Config[k] = v
 			}
 			materializeDisks(vmid, g.Config)
-			if name, has := params["name"]; has {
+			if name, has := params[nameKey(g.Type)]; has {
 				g.Name = fmt.Sprintf("%v", name)
 			}
 		}
 		s.mu.Unlock()
 		if !ok {
 			http.Error(w, "does not exist", http.StatusInternalServerError)
+			return
+		}
+		if m[2] == "lxc" {
+			// Proxmox VE applies an lxc config PUT synchronously and
+			// answers "data": null rather than a UPID.
+			writeData(w, nil)
 			return
 		}
 		s.finishTask(w, m[1], "update")
@@ -356,14 +393,15 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	config := map[string]any{}
 	for k, v := range params {
-		if k != "vmid" {
-			config[k] = v
+		if k == "vmid" || (typ == "lxc" && lxcCreateOnly[k]) {
+			continue
 		}
+		config[k] = v
 	}
 	materializeDisks(vmid, config)
 	s.guests[vmid] = &Guest{
 		VMID:   vmid,
-		Name:   fmt.Sprintf("%v", params["name"]),
+		Name:   fmt.Sprintf("%v", params[nameKey(typ)]),
 		Node:   node,
 		Type:   typ,
 		Status: "stopped",
@@ -593,8 +631,12 @@ func (s *Server) handleAgentExecStatus(w http.ResponseWriter, r *http.Request) {
 // writeAPIError answers the way Proxmox VE does on a failed call: a
 // JSON body with a "message", which the SDK surfaces verbatim.
 func writeAPIError(w http.ResponseWriter, message string) {
+	writeAPIErrorStatus(w, http.StatusInternalServerError, message)
+}
+
+func writeAPIErrorStatus(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusInternalServerError)
+	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": nil, "message": message})
 }
 
@@ -648,13 +690,135 @@ func materializeDisks(vmid int, config map[string]any) {
 		if err != nil {
 			continue // already a volume name
 		}
-		slot := strings.TrimLeft(key, "abcdefghijklmnopqrstuvwxyz")
+		slot := diskSlot(key)
 		rebuilt := fmt.Sprintf("%s:vm-%d-disk-%s", storage, vmid, slot)
 		if opts != "" {
 			rebuilt += "," + opts
 		}
 		config[key] = rebuilt + fmt.Sprintf(",size=%sG", strconv.FormatFloat(gigabytes, 'f', -1, 64))
 	}
+}
+
+// diskSlot numbers the volume a disk key allocates. qemu keys reuse
+// their bus index; an lxc container's rootfs is disk-0 and mpN follows
+// it as disk-(N+1), which is how Proxmox VE names them.
+func diskSlot(key string) string {
+	if key == "rootfs" {
+		return "0"
+	}
+	if n, ok := strings.CutPrefix(key, "mp"); ok {
+		i, _ := strconv.Atoi(n)
+		return strconv.Itoa(i + 1)
+	}
+	return strings.TrimLeft(key, "abcdefghijklmnopqrstuvwxyz")
+}
+
+// lxcCreateOnly are the create parameters Proxmox VE consumes without
+// writing them to the container config.
+var lxcCreateOnly = map[string]bool{
+	"ostemplate":      true,
+	"password":        true,
+	"ssh-public-keys": true,
+	"storage":         true,
+	"pool":            true,
+	"start":           true,
+	"restore":         true,
+	"force":           true,
+	"unique":          true,
+}
+
+// nameKey is the config key that carries a guest's display name.
+func nameKey(typ string) string {
+	if typ == "lxc" {
+		return "hostname"
+	}
+	return "name"
+}
+
+// AddVolume seeds a volume into a node's storage.
+func (s *Server) AddVolume(node, storage string, v Volume) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := node + "/" + storage
+	s.volumes[key] = append(s.volumes[key], v)
+}
+
+// Downloads returns the params of every accepted download-url request,
+// in order.
+func (s *Server) Downloads() []map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]map[string]any, len(s.downloads))
+	copy(out, s.downloads)
+	return out
+}
+
+func (s *Server) handleStorageContent(w http.ResponseWriter, r *http.Request) {
+	m := rxStContent.FindStringSubmatch(r.URL.Path)
+	content := r.URL.Query().Get("content")
+
+	s.mu.Lock()
+	list := []any{}
+	for _, v := range s.volumes[m[1]+"/"+m[2]] {
+		if content != "" && v.Content != content {
+			continue
+		}
+		list = append(list, map[string]any{
+			"volid":   v.VolID,
+			"content": v.Content,
+			"format":  v.Format,
+			"size":    float64(v.Size),
+		})
+	}
+	s.mu.Unlock()
+	writeData(w, list)
+}
+
+// handleDownloadURL accepts a download-url request and answers with a
+// task. A failure armed with FailNext("download") fails the task and
+// stores nothing, the way a checksum mismatch does on a real node.
+func (s *Server) handleDownloadURL(w http.ResponseWriter, r *http.Request) {
+	m := rxStDownload.FindStringSubmatch(r.URL.Path)
+	node, storage := m[1], m[2]
+	params := formParams(r)
+	for _, required := range []string{"content", "filename", "url"} {
+		if value, has := params[required]; !has || value == "" {
+			writeAPIErrorStatus(w, http.StatusBadRequest, fmt.Sprintf("parameter verification failed: %s: property is missing", required))
+			return
+		}
+	}
+
+	s.mu.Lock()
+	s.downloads = append(s.downloads, params)
+	if _, failing := s.failNext["download"]; !failing {
+		content := fmt.Sprintf("%v", params["content"])
+		filename := fmt.Sprintf("%v", params["filename"])
+		key := node + "/" + storage
+		s.volumes[key] = append(s.volumes[key], Volume{
+			VolID:   fmt.Sprintf("%s:%s/%s", storage, content, filename),
+			Content: content,
+			Format:  formatOf(filename),
+		})
+	}
+	s.mu.Unlock()
+
+	s.finishTask(w, node, "download")
+}
+
+// formatOf derives the format column Proxmox VE shows for a file name.
+func formatOf(filename string) string {
+	switch {
+	case strings.HasSuffix(filename, ".tar.zst"):
+		return "tzst"
+	case strings.HasSuffix(filename, ".tar.gz"):
+		return "tgz"
+	case strings.HasSuffix(filename, ".tar.xz"):
+		return "txz"
+	}
+	if i := strings.LastIndex(filename, "."); i >= 0 {
+		return filename[i+1:]
+	}
+	return ""
 }
 
 // resizeDiskValue applies a /resize request to a stored disk value.

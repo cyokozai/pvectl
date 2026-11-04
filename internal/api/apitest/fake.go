@@ -89,6 +89,13 @@ type Fake struct {
 	Migrations []MigrateCall
 	Execs      []ExecCall
 
+	// LXC and storage (M2). Volumes holds storage content per
+	// "node/storage"; seed it with AddVolume.
+	LxcCreates []LxcCreateCall
+	LxcUpdates []LxcUpdateCall
+	Downloads  []DownloadCall
+	Volumes    map[string][]api.StorageVolume
+
 	nextPID   int
 	execPolls map[int]int
 }
@@ -375,4 +382,140 @@ func (r fakeRaw) PutTask(ctx context.Context, path string, params map[string]any
 func (r fakeRaw) DeleteTask(ctx context.Context, path string) error {
 	r.f.Raws = append(r.f.Raws, RawCall{Method: "DELETE", Path: path})
 	return nil
+}
+
+// --- LXC and storage (M2, ADR-010) ---
+
+// LxcCreateCall records one CreateLxc invocation. Params are kept as
+// sent, create-only keys (password, ssh-public-keys) included.
+type LxcCreateCall struct {
+	Node   string
+	VMID   int
+	Params map[string]any
+}
+
+// LxcUpdateCall records one UpdateLxcConfig invocation.
+type LxcUpdateCall struct {
+	Ref    api.GuestRef
+	Params map[string]any
+}
+
+// DownloadCall records one DownloadURL invocation.
+type DownloadCall struct {
+	Node    string
+	Storage string
+	Params  map[string]any
+}
+
+// lxcCreateOnly are the create parameters Proxmox VE consumes without
+// writing them to the container config.
+var lxcCreateOnly = map[string]bool{
+	"ostemplate":      true,
+	"password":        true,
+	"ssh-public-keys": true,
+	"storage":         true,
+	"pool":            true,
+	"start":           true,
+}
+
+// AddVolume seeds a volume into a node's storage.
+func (f *Fake) AddVolume(node, storage string, v api.StorageVolume) {
+	if f.Volumes == nil {
+		f.Volumes = map[string][]api.StorageVolume{}
+	}
+	key := node + "/" + storage
+	f.Volumes[key] = append(f.Volumes[key], v)
+}
+
+func (f *Fake) LxcConfig(ctx context.Context, ref *api.GuestRef) (map[string]any, error) {
+	if err := f.fail("LxcConfig"); err != nil {
+		return nil, err
+	}
+	cfg, ok := f.Configs[ref.VMID]
+	if !ok || !f.isLxc(ref.VMID) {
+		return nil, fmt.Errorf("container %d: %w", ref.VMID, api.ErrNotFound)
+	}
+	copied := map[string]any{}
+	for k, v := range cfg {
+		copied[k] = v
+	}
+	return copied, nil
+}
+
+func (f *Fake) CreateLxc(ctx context.Context, node string, vmid int, params map[string]any) error {
+	if err := f.fail("CreateLxc"); err != nil {
+		return err
+	}
+	f.LxcCreates = append(f.LxcCreates, LxcCreateCall{Node: node, VMID: vmid, Params: params})
+	config := stringify(params)
+	for k := range lxcCreateOnly {
+		delete(config, k)
+	}
+	hostname, _ := params["hostname"].(string)
+	f.AddGuest(api.GuestSummary{VMID: vmid, Name: hostname, Node: node, Type: "lxc"}, config)
+	return nil
+}
+
+func (f *Fake) UpdateLxcConfig(ctx context.Context, ref *api.GuestRef, params map[string]any) error {
+	if err := f.fail("UpdateLxcConfig"); err != nil {
+		return err
+	}
+	f.LxcUpdates = append(f.LxcUpdates, LxcUpdateCall{Ref: *ref, Params: params})
+	if f.Configs == nil {
+		f.Configs = map[int]map[string]any{}
+	}
+	cfg := f.Configs[ref.VMID]
+	if cfg == nil {
+		cfg = map[string]any{}
+		f.Configs[ref.VMID] = cfg
+	}
+	for k, v := range stringify(params) {
+		cfg[k] = v
+	}
+	if hostname, ok := params["hostname"].(string); ok {
+		for i := range f.GuestList {
+			if f.GuestList[i].VMID == ref.VMID {
+				f.GuestList[i].Name = hostname
+			}
+		}
+	}
+	return nil
+}
+
+func (f *Fake) StorageContent(ctx context.Context, node, storage, content string) ([]api.StorageVolume, error) {
+	if err := f.fail("StorageContent"); err != nil {
+		return nil, err
+	}
+	var out []api.StorageVolume
+	for _, v := range f.Volumes[node+"/"+storage] {
+		if content == "" || v.Content == content {
+			out = append(out, v)
+		}
+	}
+	return out, nil
+}
+
+// DownloadURL records the call and, like a finished download task,
+// makes "{storage}:{content}/{filename}" appear in StorageContent.
+func (f *Fake) DownloadURL(ctx context.Context, node, storage string, params map[string]any) error {
+	if err := f.fail("DownloadURL"); err != nil {
+		return err
+	}
+	f.Downloads = append(f.Downloads, DownloadCall{Node: node, Storage: storage, Params: params})
+	content := fmt.Sprintf("%v", params["content"])
+	filename := fmt.Sprintf("%v", params["filename"])
+	f.AddVolume(node, storage, api.StorageVolume{
+		VolID:   fmt.Sprintf("%s:%s/%s", storage, content, filename),
+		Content: content,
+	})
+	return nil
+}
+
+func (f *Fake) isLxc(vmid int) bool {
+	for _, g := range f.GuestList {
+		if g.VMID == vmid {
+			return g.Type == "lxc"
+		}
+	}
+	return false
 }

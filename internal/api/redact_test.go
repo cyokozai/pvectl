@@ -61,6 +61,11 @@ func TestRedactRequestBody(t *testing.T) {
 			want: "name=demo&sshkeys=REDACTED",
 		},
 		{
+			name: "lxc create-time root password and keys are masked",
+			body: "hostname=ct&password=hunter2&ssh-public-keys=ssh-ed25519+AAAA",
+			want: "hostname=ct&password=REDACTED&ssh-public-keys=REDACTED",
+		},
+		{
 			name: "keys are sorted so identical requests log identically",
 			body: "memory=1024&cores=2",
 			want: "cores=2&memory=1024",
