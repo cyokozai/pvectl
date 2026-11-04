@@ -111,12 +111,24 @@ func TestExecRequiresDoubleDash(t *testing.T) {
 	}
 }
 
-func TestExecRejectsNonQemuGuest(t *testing.T) {
+// TestExecRejectsLinuxContainerWithReason names the actual limitation:
+// Proxmox has no REST exec for containers, only the node-local pct exec.
+// The name is resolved before the type matters, so an lxc reached under
+// any TYPE (today "vm", later "ct") gets this message.
+func TestExecRejectsLinuxContainerWithReason(t *testing.T) {
 	e := newEnv(t)
-	e.fake.AddGuest(api.GuestSummary{VMID: 110, Name: "ct-box", Node: "pve1", Type: "lxc"}, nil)
+	e.fake.AddGuest(api.GuestSummary{VMID: 110, Name: "ct-box", Node: "pve1", Type: "lxc", Status: "running"}, nil)
 
 	err := e.run(t, "exec", "vm", "ct-box", "--", "uname")
-	if err == nil || !strings.Contains(err.Error(), "guest agent") {
-		t.Fatalf("exec on an lxc guest: error = %v, want a guest-agent explanation", err)
+	if err == nil {
+		t.Fatal("exec on an lxc guest: error = nil, want a refusal")
+	}
+	for _, want := range []string{"LXC", "no exec in the REST API", "pct exec", "ssh"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not mention %q", err, want)
+		}
+	}
+	if len(e.fake.Execs) != 0 {
+		t.Error("exec reached the guest agent API for a container")
 	}
 }

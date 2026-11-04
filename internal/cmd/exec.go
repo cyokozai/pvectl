@@ -23,6 +23,9 @@ guest agent, and reports the guest-side stdout, stderr, and exit code as
 its own. The guest needs "agent: 1" in its config and a running
 qemu-guest-agent.
 
+LXC containers are not supported: Proxmox VE offers no exec in its REST
+API for containers, and pct exec only runs locally on the node.
+
 Everything after "--" is handed to the guest untouched, so the command's
 own flags are never parsed by pvectl.
 
@@ -58,6 +61,11 @@ about "I ran this once" is a desired state to converge on.`,
 			ref, err := client.FindGuest(cmd.Context(), name)
 			if err != nil {
 				return err
+			}
+			if ref.Type == "lxc" {
+				return fmt.Errorf("%q is an LXC container, and Proxmox VE has no exec in the REST API for containers: "+
+					"pct exec only runs locally on the node (%s). Use ssh to the container, or pct exec %d on that node",
+					name, ref.Node, ref.VMID)
 			}
 			if ref.Type != "qemu" {
 				return fmt.Errorf("%s is a %s guest; exec needs the QEMU guest agent",
