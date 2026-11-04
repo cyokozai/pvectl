@@ -100,8 +100,10 @@ type Network struct {
 	Bridge string `yaml:"bridge" json:"bridge"`
 	// Model defaults to virtio.
 	Model string `yaml:"model,omitempty" json:"model,omitempty"`
-	// Tag is the VLAN tag.
-	Tag int `yaml:"tag,omitempty" json:"tag,omitempty"`
+	// Tag is the VLAN tag (1-4094). Leaving it out keeps the tag
+	// unmanaged: it is not compared and the live tag is carried over.
+	// 0 declares "no tag": a live tag shows up as a diff and is removed.
+	Tag *int `yaml:"tag,omitempty" json:"tag,omitempty"`
 }
 
 // CloudInit configures the cloud-init drive and its settings.

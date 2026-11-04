@@ -22,7 +22,7 @@ func fullSpec() *Spec {
 			{Name: "scsi0", Size: "32G", Storage: "local-lvm", Format: "qcow2", Cache: "writeback"},
 		},
 		Networks: []Network{
-			{Name: "net0", Bridge: "vmbr0", Model: "virtio", Tag: 100},
+			{Name: "net0", Bridge: "vmbr0", Model: "virtio", Tag: intPtr(100)},
 		},
 		CloudInit: &CloudInit{
 			User: "admin",

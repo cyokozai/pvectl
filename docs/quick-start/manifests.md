@@ -52,6 +52,28 @@ apart from "the user never set it".
 it to the value you want rather than deleting the line — or change it outside
 pvectl, with the Web UI or `qm`.
 
+### Removing a NIC's VLAN tag
+
+`spec.networks[].tag` follows the same rule, so it has an explicit value for
+"no tag":
+
+| `tag` | meaning |
+|---|---|
+| omitted | unmanaged — not compared, and the live tag (if any) is kept on update |
+| `0` | declares the NIC untagged — a live tag shows up in `diff` and apply removes it |
+| `1`–`4094` | the VLAN tag |
+
+```yaml
+spec:
+  networks:
+    - name: net0
+      bridge: vmbr0
+      tag: 0          # take the tag off; omitting the line would leave it in place
+```
+
+The NIC's MAC and the sub-keys the manifest does not write are kept either
+way. `get -o yaml` writes `tag` only when the live NIC has one.
+
 ## How apply works
 
 `apply` resolves the VM by `spec.vmid` (if pinned) or `metadata.name`, then:

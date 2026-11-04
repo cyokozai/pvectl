@@ -165,8 +165,8 @@ func (h *Handler) Describe(ctx context.Context, c api.Client, name string, w io.
 		p("Networks:\t")
 		for _, n := range vm.Spec.Networks {
 			line := fmt.Sprintf("  %s:\t%s bridge=%s", n.Name, n.Model, n.Bridge)
-			if n.Tag > 0 {
-				line += fmt.Sprintf(" vlan=%d", n.Tag)
+			if n.Tag != nil && *n.Tag > 0 {
+				line += fmt.Sprintf(" vlan=%d", *n.Tag)
 			}
 			p("%s", line)
 		}
