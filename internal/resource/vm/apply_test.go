@@ -749,3 +749,77 @@ func TestGetYAMLRoundTrip(t *testing.T) {
 		t.Errorf("round-trip Action = %v, want unchanged (diff %+v)\nyaml:\n%s", res.Action, res.Diff, data)
 	}
 }
+
+// TestApplyUpdateKeepsUnwrittenNICSubKeys: a config PUT replaces the
+// whole netN value, so the sub-keys the manifest does not write — the
+// MAC above all — must be carried over from live (ADR-005). Otherwise a
+// bridge change quietly hands the VM a new MAC, and with DHCP a new IP.
+func TestApplyUpdateKeepsUnwrittenNICSubKeys(t *testing.T) {
+	const liveNet0 = "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0,firewall=1,queues=4,tag=100"
+
+	t.Run("bridge change keeps the MAC and unwritten options", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["net0"] = liveNet0
+		doc := strings.Replace(existingVMManifest, "bridge: vmbr0", "bridge: vmbr1", 1)
+		res, err := apply(t, f, doc, resource.ApplyOptions{})
+		if err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Updates) != 1 {
+			t.Fatalf("Updates = %+v", f.Updates)
+		}
+		want := "virtio=BC:24:11:AA:BB:CC,bridge=vmbr1,firewall=1,queues=4,tag=100"
+		if got := f.Updates[0].Params["net0"]; got != want {
+			t.Errorf("net0 = %#v, want %q", got, want)
+		}
+		if res.Diff == nil || len(res.Diff.Entries) != 1 || res.Diff.Entries[0].Key != "net0" {
+			t.Errorf("Diff = %+v, want only net0", res.Diff)
+		}
+	})
+
+	t.Run("tag change keeps the MAC", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["net0"] = liveNet0
+		doc := strings.Replace(existingVMManifest, "tag: 100", "tag: 200", 1)
+		if _, err := apply(t, f, doc, resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Updates) != 1 {
+			t.Fatalf("Updates = %+v", f.Updates)
+		}
+		want := "virtio=BC:24:11:AA:BB:CC,bridge=vmbr0,firewall=1,queues=4,tag=200"
+		if got := f.Updates[0].Params["net0"]; got != want {
+			t.Errorf("net0 = %#v, want %q", got, want)
+		}
+	})
+
+	t.Run("model change keeps the MAC under the new model", func(t *testing.T) {
+		f := seededFake()
+		f.Configs[100]["net0"] = liveNet0
+		doc := strings.Replace(existingVMManifest, "model: virtio", "model: e1000", 1)
+		if _, err := apply(t, f, doc, resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Updates) != 1 {
+			t.Fatalf("Updates = %+v", f.Updates)
+		}
+		want := "e1000=BC:24:11:AA:BB:CC,bridge=vmbr0,firewall=1,queues=4,tag=100"
+		if got := f.Updates[0].Params["net0"]; got != want {
+			t.Errorf("net0 = %#v, want %q", got, want)
+		}
+	})
+
+	t.Run("a new NIC slot is written as declared", func(t *testing.T) {
+		f := seededFake()
+		doc := strings.Replace(existingVMManifest, "      tag: 100\n", "      tag: 100\n    - name: net1\n      bridge: vmbr1\n", 1)
+		if _, err := apply(t, f, doc, resource.ApplyOptions{}); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if len(f.Updates) != 1 {
+			t.Fatalf("Updates = %+v", f.Updates)
+		}
+		if got := f.Updates[0].Params["net1"]; got != "virtio,bridge=vmbr1" {
+			t.Errorf("net1 = %#v, want the manifest value", got)
+		}
+	})
+}
