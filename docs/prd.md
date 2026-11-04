@@ -52,7 +52,7 @@ kubectl ユーザーにとって馴染みのある「宣言的マニフェスト
 |---|---|---|
 | **M1** | `VirtualMachine`（qemu）完全対応: 冪等 apply / diff / dry-run / clone+再設定 / cloud-init / disk resize / lifecycle | 回帰チェックリスト全通過・CI green・docs 完備 → `v0.1.0` |
 | **M1.5**（現在） | M1 の後に入った追補: `exec` / `migrate` 動詞、`spec.raw`（ADR-006 §7）、`spec.runStrategy`、`cloudInit.passwordFrom`（いずれも ADR-005） | M1 と同時に `v0.1.0` としてリリース |
-| M2 | `Container`（LXC）: `FindGuest` の一般化、`ostemplate`/`rootfs`/`mountPoints` | 同上 → `v0.2.0` |
+| M2 | `LinuxContainer`（LXC、ADR-010）: `ostemplate`（volid 直接指定と `{url, sha256}` 取り寄せ）/`rootfs`/`mountPoints`、`unprivileged` 必須 | 同上 → `v0.2.0` |
 | M3 | `Storage` / `Network`（pending+reload モデル）/ `Snapshot`（動詞主体） | `v0.3.0` |
 | M4 | `Pool` / `User`(+token) / `ACL`（set 調停）/ `HA` | `v0.4.*` |
 | **v1.0.0** | M4 が完成し、テストを行い、フィードバックの内容を十分反映した状態 | 上記すべて + マニフェストのスキーマ安定（`v1alpha1` → `v1`）→ `v1.0.0` |
