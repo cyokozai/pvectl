@@ -10,6 +10,7 @@ import (
 	"github.com/cyokozai/pvectl/internal/api"
 	"github.com/cyokozai/pvectl/internal/printer"
 	"github.com/cyokozai/pvectl/internal/resource"
+	"github.com/cyokozai/pvectl/internal/resource/vm"
 	"github.com/cyokozai/pvectl/internal/runtime"
 )
 
@@ -75,9 +76,9 @@ func addContainer(e *testEnv, status string) {
 	e.fake.AddGuest(api.GuestSummary{VMID: 110, Name: "ct-box", Node: "pve1", Type: "lxc", Status: status}, nil)
 }
 
-// containerHandler stands in for the LinuxContainer handler, which is
-// registered in a later change. exec and migrate only need its kind and
-// aliases to resolve TYPE "ct".
+// containerHandler stands in for the LinuxContainer handler where the
+// built-in registry does not have one yet. exec and migrate only need
+// its kind and aliases to resolve TYPE "ct".
 type containerHandler struct{}
 
 func (containerHandler) GVK() runtime.GVK {
@@ -95,10 +96,24 @@ func (containerHandler) List(context.Context, api.Client) ([]printer.Object, err
 }
 func (containerHandler) Describe(context.Context, api.Client, string, io.Writer) error { return nil }
 
-// containerRegistry is the built-in registry plus LinuxContainer.
+// containerRegistry is the built-in registry with LinuxContainer in it:
+// the real handler when the build has one, else the stub. The stub never
+// replaces a real handler.
 func containerRegistry() *resource.Registry {
 	reg := DefaultRegistry()
+	if h, err := reg.Lookup("LinuxContainer"); err == nil && h.GVK().Kind == "LinuxContainer" {
+		return reg
+	}
 	reg.Register(containerHandler{})
+	return reg
+}
+
+// vmOnlyRegistry has VirtualMachine and nothing else, for the case where
+// LinuxContainer is not managed. It is built here rather than taken from
+// DefaultRegistry, so it holds whatever kinds the build registers.
+func vmOnlyRegistry() *resource.Registry {
+	reg := resource.NewRegistry()
+	reg.Register(vm.NewHandler())
 	return reg
 }
 
@@ -212,7 +227,7 @@ func TestMigrateRejectsTypeMismatch(t *testing.T) {
 	t.Run("vm naming a container, container kind not built in", func(t *testing.T) {
 		e := newEnv(t)
 		addContainer(e, "stopped")
-		err := e.run(t, "migrate", "vm", "ct-box", "--to", "pve2")
+		err := e.runWith(t, vmOnlyRegistry(), "migrate", "vm", "ct-box", "--to", "pve2")
 		if !errors.Is(err, api.ErrNotFound) {
 			t.Fatalf("migrate vm <container>: error = %v, want ErrNotFound", err)
 		}

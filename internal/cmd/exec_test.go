@@ -172,7 +172,7 @@ func TestExecRejectsTypeMismatch(t *testing.T) {
 	t.Run("container kind not built in", func(t *testing.T) {
 		e := newEnv(t)
 		addContainer(e, "running")
-		err := e.run(t, "exec", "vm", "ct-box", "--", "uname")
+		err := e.runWith(t, vmOnlyRegistry(), "exec", "vm", "ct-box", "--", "uname")
 		if !errors.Is(err, api.ErrNotFound) {
 			t.Fatalf("exec vm <container>: error = %v, want ErrNotFound", err)
 		}
