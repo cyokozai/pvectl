@@ -171,8 +171,8 @@ func networkErrors(spec *Spec) []string {
 		if n.GW != "" && net.ParseIP(n.GW) == nil {
 			errs = append(errs, fmt.Sprintf("%s.gw %q must be an IP address", where, n.GW))
 		}
-		if n.Tag < 0 || n.Tag > maxVLANTag {
-			errs = append(errs, fmt.Sprintf("%s.tag %d must be between 1 and %d", where, n.Tag, maxVLANTag))
+		if n.Tag != nil && (*n.Tag < 0 || *n.Tag > maxVLANTag) {
+			errs = append(errs, fmt.Sprintf("%s.tag %d must be 1-%d, or 0 for no tag", where, *n.Tag, maxVLANTag))
 		}
 		if n.HWAddr != "" {
 			if _, err := net.ParseMAC(n.HWAddr); err != nil {

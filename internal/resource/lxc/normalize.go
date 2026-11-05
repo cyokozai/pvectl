@@ -121,17 +121,31 @@ func parseOpts(s string) map[string]string {
 
 // normalizeNetRule compares the NIC sub-keys the manifest writes. The
 // generated hwaddr and type=veth are ignored unless written; hwaddr is
-// compared case-insensitively.
+// compared case-insensitively. A sub-key written with an empty value is
+// managed but declared absent (`tag: 0`), so it renders the same as a
+// live value without the key.
 //
 //nolint:unparam // the bool is fixed by the diff.Rules signature
 func normalizeNetRule(cur, des string) (string, string, bool) {
 	desOpts := upperHWAddr(parseOpts(des))
-	if cur == "" {
-		return "", strings.Join(pickOpts(desOpts, keysOf(desOpts)), ","), false
-	}
 	managed := keysOf(desOpts)
+	desStr := strings.Join(pickOpts(dropEmpty(desOpts), managed), ",")
+	if cur == "" {
+		return "", desStr, false
+	}
 	curOpts := upperHWAddr(parseOpts(cur))
-	return strings.Join(pickOpts(curOpts, managed), ","), strings.Join(pickOpts(desOpts, managed), ","), false
+	return strings.Join(pickOpts(curOpts, managed), ","), desStr, false
+}
+
+// dropEmpty returns opts without the keys whose value is empty.
+func dropEmpty(opts map[string]string) map[string]string {
+	out := make(map[string]string, len(opts))
+	for k, v := range opts {
+		if v != "" {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 func upperHWAddr(opts map[string]string) map[string]string {

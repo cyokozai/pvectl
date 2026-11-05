@@ -133,15 +133,19 @@ func mountPointFromValue(key, value string) (MountPoint, bool) {
 // and is not exported, the same as a VM's macaddr.
 func netFromValue(key, value string) Network {
 	opts := parseOpts(value)
-	tag, _ := strconv.Atoi(opts["tag"])
-	return Network{
+	n := Network{
 		Name:      key,
 		Interface: opts["name"],
 		Bridge:    opts["bridge"],
 		IP:        opts["ip"],
 		GW:        opts["gw"],
-		Tag:       tag,
 	}
+	// An untagged NIC leaves tag out rather than writing `tag: 0`: the
+	// output stays round-trippable without claiming the key.
+	if tag, err := strconv.Atoi(opts["tag"]); err == nil && tag > 0 {
+		n.Tag = &tag
+	}
+	return n
 }
 
 // featuresFromValue maps the modelled feature flags; nil when none of

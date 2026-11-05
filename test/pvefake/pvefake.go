@@ -26,6 +26,8 @@ type Guest struct {
 	Node   string
 	Type   string // qemu | lxc
 	Status string // running | stopped
+	// Pool is the resource pool the guest was created into.
+	Pool   string
 	Config map[string]any
 }
 
@@ -41,6 +43,14 @@ type Server struct {
 	failNext map[string]string
 	// Token, when set, is the only accepted PVEAPIToken value.
 	Token string
+	// VerifyOSTemplate makes an lxc create fail unless its ostemplate is
+	// on the node's storage, as a real node does. Off by default so the
+	// api layer's tests can create without seeding storage.
+	VerifyOSTemplate bool
+	// downloadDenied, when set, answers download-url with HTTP 403.
+	downloadDenied bool
+	// macSeq numbers the MAC addresses the fake hands out.
+	macSeq int
 
 	taskSeq     int
 	taskResults map[string]string // upid -> exitstatus
@@ -305,14 +315,30 @@ func (s *Server) handleResources(w http.ResponseWriter, _ *http.Request) {
 	defer s.mu.Unlock()
 	list := make([]any, 0, len(s.guests))
 	for _, g := range s.guests {
-		list = append(list, map[string]any{
+		row := map[string]any{
 			"id":     fmt.Sprintf("%s/%d", g.Type, g.VMID),
 			"vmid":   float64(g.VMID),
 			"name":   g.Name,
 			"node":   g.Node,
 			"type":   g.Type,
 			"status": g.Status,
-		})
+			// Proxmox VE reports sizing from the config: maxcpu is the
+			// core count, maxmem is in bytes, and uptime counts only
+			// while the guest runs.
+			"maxcpu": float64(configInt(g.Config, "cores")),
+			"maxmem": float64(configInt(g.Config, "memory")) * (1 << 20),
+			"uptime": float64(0),
+		}
+		if g.Status == "running" {
+			row["uptime"] = float64(3600)
+		}
+		if g.Pool != "" {
+			row["pool"] = g.Pool
+		}
+		if tags, ok := g.Config["tags"]; ok && fmt.Sprintf("%v", tags) != "" {
+			row["tags"] = fmt.Sprintf("%v", tags)
+		}
+		list = append(list, row)
 	}
 	writeData(w, list)
 }
@@ -353,6 +379,9 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 				g.Config[k] = v
 			}
 			materializeDisks(vmid, g.Config)
+			if g.Type == "lxc" {
+				s.materializeNICs(params, g.Config)
+			}
 			if name, has := params[nameKey(g.Type)]; has {
 				g.Name = fmt.Sprintf("%v", name)
 			}
@@ -391,6 +420,14 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("unable to create VM %d - VM %d already exists", vmid, vmid), http.StatusInternalServerError)
 		return
 	}
+	if typ == "lxc" && s.VerifyOSTemplate {
+		template := fmt.Sprintf("%v", params["ostemplate"])
+		if !s.hasVolume(node, template) {
+			s.mu.Unlock()
+			writeAPIError(w, fmt.Sprintf("unable to create CT %d - volume '%s' does not exist", vmid, template))
+			return
+		}
+	}
 	config := map[string]any{}
 	for k, v := range params {
 		if k == "vmid" || (typ == "lxc" && lxcCreateOnly[k]) {
@@ -399,12 +436,20 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		config[k] = v
 	}
 	materializeDisks(vmid, config)
+	if typ == "lxc" {
+		s.materializeNICs(config, config)
+	}
+	pool := ""
+	if p, has := params["pool"]; has {
+		pool = fmt.Sprintf("%v", p)
+	}
 	s.guests[vmid] = &Guest{
 		VMID:   vmid,
 		Name:   fmt.Sprintf("%v", params[nameKey(typ)]),
 		Node:   node,
 		Type:   typ,
 		Status: "stopped",
+		Pool:   pool,
 		Config: config,
 	}
 	if vmid >= s.nextID {
@@ -789,6 +834,15 @@ func (s *Server) handleDownloadURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.Lock()
+	if s.downloadDenied {
+		s.mu.Unlock()
+		// Proxmox VE names the missing privilege in the HTTP status line
+		// and sends no message in the body, so a client sees only 403.
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": nil})
+		return
+	}
 	s.downloads = append(s.downloads, params)
 	if _, failing := s.failNext["download"]; !failing {
 		content := fmt.Sprintf("%v", params["content"])
@@ -908,4 +962,55 @@ func formParams(r *http.Request) map[string]any {
 func writeData(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+}
+
+// DenyDownload makes download-url answer HTTP 403, the way a token
+// without Datastore.AllocateTemplate on the storage is refused.
+func (s *Server) DenyDownload(deny bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.downloadDenied = deny
+}
+
+// hasVolume reports whether volid is on its storage on node. Callers
+// hold s.mu.
+func (s *Server) hasVolume(node, volid string) bool {
+	storage, _, _ := strings.Cut(volid, ":")
+	for _, v := range s.volumes[node+"/"+storage] {
+		if v.VolID == volid {
+			return true
+		}
+	}
+	return false
+}
+
+// rxNetKey matches the config keys that carry a NIC.
+var rxNetKey = regexp.MustCompile(`^net\d+$`)
+
+// materializeNICs stores the lxc netN values of params into config the
+// way Proxmox VE does: a value written without hwaddr gets a freshly
+// generated MAC — on every write, which is why a client that rewrites a
+// NIC must carry the old MAC over — and type=veth is added. Callers
+// hold s.mu.
+func (s *Server) materializeNICs(params, config map[string]any) {
+	for key, raw := range params {
+		if !rxNetKey.MatchString(key) {
+			continue
+		}
+		value := fmt.Sprintf("%v", raw)
+		if !strings.Contains(value, "hwaddr=") {
+			s.macSeq++
+			value += fmt.Sprintf(",hwaddr=BC:24:11:00:%02X:%02X", (s.macSeq>>8)&0xff, s.macSeq&0xff)
+		}
+		if !strings.Contains(value, "type=") {
+			value += ",type=veth"
+		}
+		config[key] = value
+	}
+}
+
+// configInt reads an integer config value stored as a form string.
+func configInt(config map[string]any, key string) int {
+	n, _ := strconv.Atoi(fmt.Sprintf("%v", config[key]))
+	return n
 }
