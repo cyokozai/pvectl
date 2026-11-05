@@ -452,7 +452,9 @@ func (f *Fake) CreateLxc(ctx context.Context, node string, vmid int, params map[
 		delete(config, k)
 	}
 	hostname, _ := params["hostname"].(string)
-	f.AddGuest(api.GuestSummary{VMID: vmid, Name: hostname, Node: node, Type: "lxc"}, config)
+	// The pool is not in the config but shows up in the cluster row.
+	pool, _ := params["pool"].(string)
+	f.AddGuest(api.GuestSummary{VMID: vmid, Name: hostname, Node: node, Type: "lxc", Pool: pool}, config)
 	return nil
 }
 
