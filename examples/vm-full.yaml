@@ -31,7 +31,7 @@ spec:
     - name: net0      # interface slot
       bridge: vmbr0
       model: virtio   # default virtio
-      tag: 100        # VLAN tag
+      tag: 100        # VLAN tag 1-4094; 0 = untagged (removes a live tag), omitted = unmanaged
   cloudInit:
     user: admin
     # The password is referenced, never written here: env:VARIABLE or
