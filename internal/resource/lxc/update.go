@@ -28,7 +28,10 @@ func planUpdate(name string, current, desired map[string]any, d diff.Result) (ma
 
 	for _, e := range d.Entries {
 		curRaw, exists := current[e.Key]
-		curStr := fmt.Sprintf("%v", curRaw)
+		curStr := ""
+		if exists {
+			curStr = fmt.Sprintf("%v", curRaw)
+		}
 		desStr := fmt.Sprintf("%v", desired[e.Key])
 
 		switch {
@@ -36,6 +39,12 @@ func planUpdate(name string, current, desired map[string]any, d diff.Result) (ma
 			return nil, nil, fmt.Errorf("linuxcontainer %q: spec.unprivileged is create-only; the manifest declares %s but the container is %s — "+
 				"recreate the container to change it, or match the manifest to the live value",
 				name, privilegeName(desStr), privilegeName(e.Current))
+
+		case rxNetKey.MatchString(e.Key):
+			// Before the new-key case: a new slot merges onto nothing,
+			// which still strips the empty sub-keys that stand for
+			// `tag: 0`.
+			put[e.Key] = mergeNetValue(curStr, desStr)
 
 		case !exists:
 			// New key or slot: allocation syntax works on config PUT.
@@ -52,9 +61,6 @@ func planUpdate(name string, current, desired map[string]any, d diff.Result) (ma
 			if value != "" {
 				put[e.Key] = value
 			}
-
-		case rxNetKey.MatchString(e.Key):
-			put[e.Key] = mergeNetValue(curStr, desStr)
 
 		case e.Key == keyFeatures:
 			merged := parseOpts(curStr)
@@ -116,10 +122,16 @@ func rebuildVolumeValue(cur, des volumeValue) (string, bool) {
 }
 
 // mergeNetValue lays the written NIC sub-keys over the live ones and
-// renders name= first, the way Proxmox writes it.
+// renders name= first, the way Proxmox writes it. A sub-key written
+// with an empty value is declared absent (`tag: 0`) and is removed
+// instead of carried over.
 func mergeNetValue(curStr, desStr string) string {
 	merged := parseOpts(curStr)
 	for k, v := range parseOpts(desStr) {
+		if v == "" {
+			delete(merged, k)
+			continue
+		}
 		merged[k] = v
 	}
 	nameOpt := "name=" + merged["name"]

@@ -8,6 +8,8 @@
 package lxc
 
 import (
+	"encoding/json"
+
 	"github.com/cyokozai/pvectl/internal/runtime"
 )
 
@@ -138,8 +140,11 @@ type Network struct {
 	// IP is "dhcp", "manual", or a CIDR like "10.0.0.5/24".
 	IP string `yaml:"ip,omitempty" json:"ip,omitempty"`
 	GW string `yaml:"gw,omitempty" json:"gw,omitempty"`
-	// Tag is the VLAN tag.
-	Tag int `yaml:"tag,omitempty" json:"tag,omitempty"`
+	// Tag is the VLAN tag (1-4094). Leaving it out keeps the tag
+	// unmanaged: it is not compared and the live tag is carried over.
+	// 0 declares "no tag": a live tag shows up as a diff and is removed.
+	// The same rule as a VirtualMachine NIC.
+	Tag *int `yaml:"tag,omitempty" json:"tag,omitempty"`
 	// HWAddr pins the MAC address. Proxmox generates one otherwise, and
 	// it is compared only when written here.
 	HWAddr string `yaml:"hwaddr,omitempty" json:"hwaddr,omitempty"`
@@ -186,6 +191,42 @@ type LinuxContainer struct {
 	Metadata         runtime.ObjectMeta `yaml:"metadata" json:"metadata"`
 	Spec             Spec               `yaml:"spec" json:"spec"`
 	Status           *Status            `yaml:"status,omitempty" json:"status,omitempty"`
+
+	// full, when set, reads the container's config and returns the
+	// round-trippable object. List sets it because the cluster list row
+	// alone cannot be applied back; it runs only on serialization.
+	full func() (*LinuxContainer, error)
+}
+
+// plainLinuxContainer has LinuxContainer's fields and tags but none of
+// its methods, so marshaling it does not recurse into MarshalYAML.
+type plainLinuxContainer LinuxContainer
+
+// resolved returns the object to serialize: the config-backed one when
+// this object came from a list row, else the object itself.
+func (c *LinuxContainer) resolved() (*plainLinuxContainer, error) {
+	if c.full == nil {
+		return (*plainLinuxContainer)(c), nil
+	}
+	full, err := c.full()
+	if err != nil {
+		return nil, err
+	}
+	return (*plainLinuxContainer)(full), nil
+}
+
+// MarshalYAML implements yaml.Marshaler (see full).
+func (c *LinuxContainer) MarshalYAML() (any, error) {
+	return c.resolved()
+}
+
+// MarshalJSON implements json.Marshaler (see full).
+func (c *LinuxContainer) MarshalJSON() ([]byte, error) {
+	obj, err := c.resolved()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(obj)
 }
 
 // GetKind implements printer.Object.

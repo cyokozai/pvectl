@@ -55,6 +55,9 @@ func typedCreateParams(name string, spec *Spec) map[string]any {
 func desiredParams(name string, spec *Spec) map[string]any {
 	params := typedConfigParams(name, spec)
 	addVolumes(params, spec)
+	for _, net := range spec.Networks {
+		params[net.Name] = desiredNetworkValue(net)
+	}
 	mergeRaw(params, spec)
 	return params
 }
@@ -135,13 +138,26 @@ func networkValue(net Network) string {
 	if net.GW != "" {
 		parts = append(parts, "gw="+net.GW)
 	}
-	if net.Tag > 0 {
-		parts = append(parts, fmt.Sprintf("tag=%d", net.Tag))
+	if net.Tag != nil && *net.Tag > 0 {
+		parts = append(parts, fmt.Sprintf("tag=%d", *net.Tag))
 	}
 	if net.HWAddr != "" {
 		parts = append(parts, "hwaddr="+strings.ToUpper(net.HWAddr))
 	}
 	return strings.Join(parts, ",")
+}
+
+// desiredNetworkValue is networkValue for the diff input only. `tag: 0`
+// is rendered as an empty "tag=" so the diff and the update know the
+// key is managed and must be absent; the empty value never reaches the
+// API — normalizeNetRule drops it and mergeNetValue removes the key.
+// The create params go through networkValue and never carry it.
+func desiredNetworkValue(net Network) string {
+	value := networkValue(net)
+	if net.Tag != nil && *net.Tag == 0 {
+		value += ",tag="
+	}
+	return value
 }
 
 // featuresValue renders the written feature flags sorted by key, or ""

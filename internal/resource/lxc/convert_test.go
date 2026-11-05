@@ -29,7 +29,7 @@ func fullSpec() *Spec {
 		},
 		Networks: []Network{
 			{Name: "net0", Bridge: "vmbr0", IP: "dhcp"},
-			{Name: "net1", Interface: "lan", Bridge: "vmbr1", IP: "10.0.0.5/24", GW: "10.0.0.1", Tag: 10, HWAddr: "bc:24:11:00:00:01"},
+			{Name: "net1", Interface: "lan", Bridge: "vmbr1", IP: "10.0.0.5/24", GW: "10.0.0.1", Tag: intPtr(10), HWAddr: "bc:24:11:00:00:01"},
 		},
 		Nameserver: "10.0.0.53",
 		Features:   &Features{Nesting: boolPtr(true), Keyctl: boolPtr(true)},

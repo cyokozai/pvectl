@@ -1,6 +1,7 @@
 package lxc
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -55,9 +56,11 @@ func TestNewFromConfig(t *testing.T) {
 	}
 	wantNets := []Network{
 		{Name: "net0", Interface: "eth0", Bridge: "vmbr0", IP: "dhcp"},
-		{Name: "net1", Interface: "lan", Bridge: "vmbr1", IP: "10.0.0.5/24", GW: "10.0.0.1", Tag: 10},
+		{Name: "net1", Interface: "lan", Bridge: "vmbr1", IP: "10.0.0.5/24", GW: "10.0.0.1", Tag: intPtr(10)},
 	}
-	if len(s.Networks) != 2 || s.Networks[0] != wantNets[0] || s.Networks[1] != wantNets[1] {
+	// net0 has no tag live, so the export leaves tag out instead of
+	// writing `tag: 0` (which would claim the key).
+	if !reflect.DeepEqual(s.Networks, wantNets) {
 		t.Errorf("networks = %+v, want %+v (hwaddr is generated and not exported)", s.Networks, wantNets)
 	}
 	if s.Features == nil || s.Features.Nesting == nil || !*s.Features.Nesting || s.Features.Keyctl == nil || s.Features.Fuse != nil {
