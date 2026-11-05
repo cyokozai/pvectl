@@ -82,7 +82,7 @@ func (h *Handler) Get(ctx context.Context, c api.Client, name string) (printer.O
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := c.QemuConfig(ctx, &api.GuestRef{VMID: summary.VMID, Node: summary.Node, Type: summary.Type})
+	cfg, err := c.QemuConfig(ctx, summaryRef(summary))
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (h *Handler) Delete(ctx context.Context, c api.Client, name string) error {
 	if err != nil {
 		return err
 	}
-	return c.DeleteGuest(ctx, &api.GuestRef{VMID: summary.VMID, Node: summary.Node, Type: summary.Type})
+	return c.DeleteGuest(ctx, summaryRef(summary))
 }
 
 // Start implements resource.Starter.
@@ -104,7 +104,7 @@ func (h *Handler) Start(ctx context.Context, c api.Client, name string) error {
 	if err != nil {
 		return err
 	}
-	return c.StartGuest(ctx, &api.GuestRef{VMID: summary.VMID, Node: summary.Node, Type: summary.Type})
+	return c.StartGuest(ctx, summaryRef(summary))
 }
 
 // Stop implements resource.Stopper.
@@ -113,7 +113,7 @@ func (h *Handler) Stop(ctx context.Context, c api.Client, name string) error {
 	if err != nil {
 		return err
 	}
-	return c.StopGuest(ctx, &api.GuestRef{VMID: summary.VMID, Node: summary.Node, Type: summary.Type})
+	return c.StopGuest(ctx, summaryRef(summary))
 }
 
 // Describe implements resource.Handler.
@@ -223,7 +223,14 @@ func (h *Handler) findQemu(ctx context.Context, c api.Client, name string) (*api
 		return nil, fmt.Errorf("virtualmachine %q matches vmids %s; identify it by spec.vmid: %w",
 			name, strings.Join(ids, ", "), api.ErrAmbiguousName)
 	case len(matches) > 0:
-		return nil, fmt.Errorf("guest %q is a %s guest, not a VirtualMachine", name, matches[0].Type)
+		// Names are resolved per kind (ADR-010 §1): a container that
+		// shares the name is a different object, so this VM does not
+		// exist. The hint keeps "get vm <lxc name>" from looking like a
+		// silent miss.
+		log.Logf(verbose.LevelResolve, "no virtualmachine named %q; a %s guest (vmid %d) has that name",
+			name, matches[0].Type, matches[0].VMID)
+		return nil, fmt.Errorf("virtualmachine %q: %w (a %s guest has that name, and it is not a VirtualMachine)",
+			name, api.ErrNotFound, matches[0].Type)
 	default:
 		log.Logf(verbose.LevelResolve, "no virtualmachine named %q among %d cluster guests", name, len(guests))
 		return nil, fmt.Errorf("virtualmachine %q: %w", name, api.ErrNotFound)
@@ -231,7 +238,9 @@ func (h *Handler) findQemu(ctx context.Context, c api.Client, name string) (*api
 }
 
 // resolveRef finds the guest a manifest refers to: by vmid when pinned,
-// else by name. Returns nil when the VM does not exist yet.
+// else by name among qemu guests only. Returns nil when the VM does not
+// exist yet. An LXC container with the same name is a different object
+// (ADR-010 §1) and neither matches nor blocks the VM.
 func (h *Handler) resolveRef(ctx context.Context, c api.Client, name string, spec *Spec) (*api.GuestRef, error) {
 	if spec.VMID != nil {
 		ref, err := c.GuestByID(ctx, *spec.VMID)
@@ -243,8 +252,8 @@ func (h *Handler) resolveRef(ctx context.Context, c api.Client, name string, spe
 			return ref, nil
 		case errors.Is(err, api.ErrNotFound):
 			// Creating under a pinned vmid: the name must not already be
-			// taken by another guest, or apply would duplicate it.
-			existing, findErr := c.FindGuest(ctx, name)
+			// taken by another VM, or apply would duplicate it.
+			existing, findErr := h.findQemu(ctx, c, name)
 			if findErr == nil {
 				return nil, fmt.Errorf("virtualmachine %q already exists as vmid %d, but the manifest declares vmid %d",
 					name, existing.VMID, *spec.VMID)
@@ -258,18 +267,20 @@ func (h *Handler) resolveRef(ctx context.Context, c api.Client, name string, spe
 		}
 	}
 
-	ref, err := c.FindGuest(ctx, name)
+	summary, err := h.findQemu(ctx, c, name)
 	switch {
 	case err == nil:
-		if ref.Type != "qemu" {
-			return nil, fmt.Errorf("guest %q is a %s guest, not a VirtualMachine", name, ref.Type)
-		}
-		return ref, nil
+		return summaryRef(summary), nil
 	case errors.Is(err, api.ErrNotFound):
 		return nil, nil
 	default:
 		return nil, err
 	}
+}
+
+// summaryRef turns a cluster row into the reference API calls take.
+func summaryRef(g *api.GuestSummary) *api.GuestRef {
+	return &api.GuestRef{VMID: g.VMID, Node: g.Node, Type: g.Type}
 }
 
 // formatUptime renders seconds as "3d4h", "2h5m", or "42s".
