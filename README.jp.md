@@ -63,8 +63,9 @@ pvectl get vm web-server -o yaml   # そのまま apply に戻せる
 |---|---|
 | [quick-start](docs/quick-start/README.jp.md) | インストール、コンテキスト設定、最初の VM、全動詞とフラグ |
 | [quick-start/manifests](docs/quick-start/manifests.jp.md) | `spec` 参照、`apply` の意味論、電源状態、秘密情報、エスケープハッチ |
+| [quick-start/linuxcontainer](docs/quick-start/linuxcontainer.jp.md) | LXC コンテナ: `unprivileged`、OS テンプレート、root の初期認証 |
 | [quick-start/development](docs/quick-start/development.md) | 開発・テスト・インストール（コンテナ完結） |
-| [examples/](examples/) | 注釈付きマニフェスト: 直接作成、クローン、マルチドキュメント |
+| [examples/](examples/) | 注釈付きマニフェスト: 直接作成、クローン、マルチドキュメント、LXC コンテナ |
 | [docs/adr/](docs/adr/) | アーキテクチャ決定記録 |
 | [docs/prd.md](docs/prd.md) | プロダクト要件とマイルストーン |
 
@@ -73,7 +74,7 @@ pvectl get vm web-server -o yaml   # そのまま apply に戻せる
 | 版 | マイルストーン | スコープ |
 |---|---|---|
 | `v0.1.0`（次回） | M1 + M1.5 | `VirtualMachine`: 冪等 apply、diff、dry-run、clone、cloud-init、lifecycle、`exec` / `migrate`、`spec.raw`、`spec.runStrategy`、`cloudInit.passwordFrom` |
-| `v0.2.0` | M2 | LXC コンテナ（`kind: Container`） |
+| `v0.2.0` | M2 | LXC コンテナ（`kind: LinuxContainer`） |
 | `v0.3.0` | M3 | ストレージ、ネットワーク、スナップショット |
 | `v0.4.*` | M4 | プール、ユーザー、ACL、HA |
 | **`v1.0.0`** | — | M4 が完成し、テストとフィードバック反映を経て、マニフェストのスキーマが安定し `v1alpha1` を抜ける時点 |
