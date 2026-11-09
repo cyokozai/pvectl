@@ -14,6 +14,7 @@ import (
 
 	"github.com/cyokozai/pvectl/internal/cliopt"
 	"github.com/cyokozai/pvectl/internal/resource"
+	"github.com/cyokozai/pvectl/internal/resource/lxc"
 	"github.com/cyokozai/pvectl/internal/resource/vm"
 	"github.com/cyokozai/pvectl/internal/verbose"
 )
@@ -39,6 +40,7 @@ func (e *ExitError) Unwrap() error { return e.Err }
 func DefaultRegistry() *resource.Registry {
 	reg := resource.NewRegistry()
 	reg.Register(vm.NewHandler())
+	reg.Register(lxc.NewHandler())
 	return reg
 }
 

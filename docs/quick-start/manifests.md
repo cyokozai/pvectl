@@ -4,7 +4,8 @@
 
 Reference for the `VirtualMachine` manifest and for what `apply` actually does
 with it. If you have not created a VM yet, start with
-[quick-start](README.md).
+[quick-start](README.md). LXC containers (`LinuxContainer`) follow the same
+rules; what differs for them is in [linuxcontainer.md](linuxcontainer.md).
 
 ## Shape
 
@@ -174,3 +175,4 @@ field (`cores`, `scsi0`, `net0`, …) is an error.
 - [ADR-003](../adr/ADR-003-apply-strategy.md) — managed-key diff, normalization rules, immutability
 - [ADR-005](../adr/ADR-005-purpose-and-non-goals.md) — the declared-keys principle, the 2-way merge trade-off, non-goals
 - [ADR-006](../adr/ADR-006-api-groups-and-schema.md) — API groups, schema, and the `raw` escape hatch
+- [ADR-010](../adr/ADR-010-linux-container.md) — `LinuxContainer`: required `unprivileged`, OS templates by content hash

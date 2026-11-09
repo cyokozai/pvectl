@@ -8,6 +8,7 @@ configured, and your first VM created from a manifest.
 | | |
 |---|---|
 | [manifests.md](manifests.md) | manifest fields, what `apply` does, secrets, escape hatch |
+| [linuxcontainer.md](linuxcontainer.md) | LXC containers: `unprivileged`, OS templates, root credentials |
 | [development.md](development.md) | 開発・テスト・インストール（コンテナ完結） |
 
 ## 1. Install
@@ -160,7 +161,9 @@ are immutable, and how `spec.runStrategy` controls the power state.
 | `version` | version, commit, and build date |
 
 `TYPE` is a kind or one of its aliases: `vm`, `vms`, `virtualmachine`, and
-`virtualmachines` all name `VirtualMachine`. New kinds join through a resource
+`virtualmachines` all name `VirtualMachine`; `ct`, `lxc`, `linuxcontainer`,
+and `linuxcontainers` name `LinuxContainer` (see
+[linuxcontainer.md](linuxcontainer.md)). New kinds join through a resource
 registry, so they gain every verb above without a new command.
 
 Global flags, accepted by every verb:
@@ -224,5 +227,6 @@ guest actually runs on, it reports an error instead of moving it.
 ## Next
 
 - [manifests.md](manifests.md) — every `spec` field and the exact semantics of `apply`
+- [linuxcontainer.md](linuxcontainer.md) — LXC containers: what differs from a VM
 - [examples/](../../examples/) — annotated manifests for direct create, clone, and multi-document files
 - [../adr/](../adr/) — why pvectl works this way

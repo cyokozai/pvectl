@@ -172,7 +172,7 @@ func TestValidateNetworks(t *testing.T) {
 		{Name: "net0", Bridge: "vmbr0"},
 		{Name: "net0", Bridge: "vmbr0", IP: "dhcp"},
 		{Name: "net0", Bridge: "vmbr0", IP: "manual"},
-		{Name: "net0", Bridge: "vmbr0", IP: "10.0.0.5/24", GW: "10.0.0.1", Tag: 4094, HWAddr: "BC:24:11:00:00:01"},
+		{Name: "net0", Bridge: "vmbr0", IP: "10.0.0.5/24", GW: "10.0.0.1", Tag: intPtr(4094), HWAddr: "BC:24:11:00:00:01"},
 	}
 	for _, n := range valid {
 		spec := minimalSpec()
@@ -191,7 +191,7 @@ func TestValidateNetworks(t *testing.T) {
 		{"no bridge", []Network{{Name: "net0"}}, "spec.networks[0].bridge"},
 		{"bad ip", []Network{{Name: "net0", Bridge: "vmbr0", IP: "10.0.0.5"}}, "spec.networks[0].ip"},
 		{"bad gw", []Network{{Name: "net0", Bridge: "vmbr0", IP: "10.0.0.5/24", GW: "gateway"}}, "spec.networks[0].gw"},
-		{"bad tag", []Network{{Name: "net0", Bridge: "vmbr0", Tag: 4095}}, "spec.networks[0].tag"},
+		{"bad tag", []Network{{Name: "net0", Bridge: "vmbr0", Tag: intPtr(4095)}}, "spec.networks[0].tag"},
 		{"bad hwaddr", []Network{{Name: "net0", Bridge: "vmbr0", HWAddr: "nope"}}, "spec.networks[0].hwaddr"},
 		{"duplicate slot", []Network{{Name: "net0", Bridge: "vmbr0"}, {Name: "net0", Bridge: "vmbr1"}}, "spec.networks[1].name \"net0\" is declared more than once"},
 	}

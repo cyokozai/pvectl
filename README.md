@@ -63,8 +63,9 @@ pvectl get vm web-server -o yaml   # round-trips back into apply
 |---|---|
 | [quick-start](docs/quick-start/README.md) | install, configure a context, apply your first VM, every verb and flag |
 | [quick-start/manifests](docs/quick-start/manifests.md) | `spec` reference, what `apply` does, power state, secrets, escape hatch |
+| [quick-start/linuxcontainer](docs/quick-start/linuxcontainer.md) | LXC containers: `unprivileged`, OS templates, root credentials |
 | [quick-start/development](docs/quick-start/development.md) | 開発・テスト・インストール（コンテナ完結） |
-| [examples/](examples/) | annotated manifests: direct create, clone, multi-document |
+| [examples/](examples/) | annotated manifests: direct create, clone, multi-document, LXC container |
 | [docs/adr/](docs/adr/) | architecture decisions |
 | [docs/prd.md](docs/prd.md) | product requirements and milestones |
 
@@ -73,7 +74,7 @@ pvectl get vm web-server -o yaml   # round-trips back into apply
 | Version | Milestone | Scope |
 |---|---|---|
 | `v0.1.0` (next) | M1 + M1.5 | `VirtualMachine`: idempotent apply, diff, dry-run, clone, cloud-init, lifecycle, `exec` / `migrate`, `spec.raw`, `spec.runStrategy`, `cloudInit.passwordFrom` |
-| `v0.2.0` | M2 | LXC containers (`kind: Container`) |
+| `v0.2.0` | M2 | LXC containers (`kind: LinuxContainer`) |
 | `v0.3.0` | M3 | Storage, network, snapshots |
 | `v0.4.*` | M4 | Pools, users, ACL, HA |
 | **`v1.0.0`** | — | M4 complete, tested, feedback addressed — the manifest schema stabilizes and leaves `v1alpha1` |

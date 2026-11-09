@@ -8,6 +8,7 @@
 | | |
 |---|---|
 | [manifests.jp.md](manifests.jp.md) | マニフェストのフィールド、`apply` の挙動、秘密情報、エスケープハッチ |
+| [linuxcontainer.jp.md](linuxcontainer.jp.md) | LXC コンテナ: `unprivileged`、OS テンプレート、root の初期認証 |
 | [development.md](development.md) | 開発・テスト・インストール（コンテナ完結） |
 
 ## 1. インストール
@@ -160,7 +161,9 @@ pvectl describe vm web-server
 | `version` | バージョン、コミット、ビルド日時 |
 
 `TYPE` は kind かその別名である。`vm`、`vms`、`virtualmachine`、
-`virtualmachines` はいずれも `VirtualMachine` を指す。新しい kind はリソース
+`virtualmachines` はいずれも `VirtualMachine` を指し、`ct`、`lxc`、
+`linuxcontainer`、`linuxcontainers` は `LinuxContainer` を指す
+（[linuxcontainer.jp.md](linuxcontainer.jp.md)）。新しい kind はリソース
 レジストリを通じて参加するので、新しいコマンドなしに上記すべての動詞を得る。
 
 すべての動詞が受け付けるグローバルフラグ:
@@ -222,5 +225,6 @@ pvectl migrate vm web-server --to pve2 --online
 ## 次に読むもの
 
 - [manifests.jp.md](manifests.jp.md) — `spec` の全フィールドと `apply` の正確な意味論
+- [linuxcontainer.jp.md](linuxcontainer.jp.md) — LXC コンテナ: VM と違う点
 - [examples/](../../examples/) — 直接作成・クローン・マルチドキュメントの注釈付きマニフェスト
 - [../adr/](../adr/) — pvectl がこう動く理由

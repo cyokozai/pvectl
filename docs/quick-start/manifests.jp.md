@@ -4,7 +4,8 @@
 
 `VirtualMachine` のマニフェストと、`apply` がそれに対して実際に行うことの参照
 資料。まだ VM を作ったことがない場合は
-[クイックスタート](README.jp.md) から読むこと。
+[クイックスタート](README.jp.md) から読むこと。LXC コンテナ（`LinuxContainer`）も
+同じ規則に従い、違う点は [linuxcontainer.jp.md](linuxcontainer.jp.md) にある。
 
 ## 形
 
@@ -171,3 +172,4 @@ spec:
 - [ADR-003](../adr/ADR-003-apply-strategy.md) — 宣言キーの diff、正規化規則、immutable 方針
 - [ADR-005](../adr/ADR-005-purpose-and-non-goals.md) — 宣言キーのみの原理、2-way merge のトレードオフ、非目標
 - [ADR-006](../adr/ADR-006-api-groups-and-schema.md) — API グループ、スキーマ、`raw` エスケープハッチ
+- [ADR-010](../adr/ADR-010-linux-container.md) — `LinuxContainer`: `unprivileged` 必須、内容ハッシュによる OS テンプレート
