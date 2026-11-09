@@ -106,15 +106,14 @@ func (h *Handler) applyCreate(ctx context.Context, c api.Client, name string, sp
 // config on top — resources, networks, cloud-init, tags, and onboot are
 // honored instead of silently inheriting the source's values.
 func (h *Handler) createFromClone(ctx context.Context, c api.Client, name string, spec *Spec, vmid int) error {
-	src, err := c.FindGuest(ctx, spec.Clone)
+	// Only a VM can be a clone source; a container sharing the name is
+	// skipped rather than reported as ambiguous (ADR-010 §1).
+	src, err := h.findQemu(ctx, c, spec.Clone)
 	if err != nil {
 		return fmt.Errorf("clone source %q: %w", spec.Clone, err)
 	}
-	if src.Type != "qemu" {
-		return fmt.Errorf("clone source %q is a %s guest, not a VirtualMachine", spec.Clone, src.Type)
-	}
 
-	if err := c.CloneQemu(ctx, src, cloneParams(name, spec, vmid)); err != nil {
+	if err := c.CloneQemu(ctx, summaryRef(src), cloneParams(name, spec, vmid)); err != nil {
 		return err
 	}
 
