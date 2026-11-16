@@ -55,7 +55,7 @@ kubectl ユーザーにとって馴染みのある「宣言的マニフェスト
 | **M2**（現在） | `LinuxContainer`（LXC、ADR-010）: `ostemplate`（volid 直接指定と `{url, sha256}` 取り寄せ）/`rootfs`/`mountPoints`、`unprivileged` 必須 | 同上 → `v0.2.0` |
 | M3 | `Storage` / `Network`（pending+reload モデル）/ `Snapshot`（動詞主体） | `v0.3.0` |
 | M4 | `Pool` / `User`(+token) / `ACL`（set 調停）/ `HA` | `v0.4.*` |
-| **v1.0.0** | M4 が完成し、テストを行い、フィードバックの内容を十分反映した状態 | 上記すべて + マニフェストのスキーマ安定（`v1alpha1` → `v1`）→ `v1.0.0` |
+| **v1.0.0** | M4 が完成し、テストを行い、フィードバックの内容を十分反映した状態。`export` 動詞（ADR-005 §5、範囲と出力の形は ADR-011） | 上記すべて + マニフェストのスキーマ安定（`v1alpha1` → `v1`）→ `v1.0.0` |
 
 新しい kind は `resource.Handler` を実装して `Register()` する 1 行で全動詞に接続される（ADR-001）。
 
@@ -67,7 +67,7 @@ kubectl ユーザーにとって馴染みのある「宣言的マニフェスト
   これは `guard-main` ワークフローが必須チェックとして強制する（docs/dev-process.md）
 - `v0.x` は `v1alpha1` スキーマの期間であり、破壊的変更を許容する（実施済み:
   `spec.startOnBoot` → `spec.runStrategy`、`spec.cloudInit.password` →
-  `spec.cloudInit.passwordFrom`）
+  `spec.cloudInit.passwordFrom`。予定: onboot を `spec.startOnBoot` として `spec.runStrategy` から分け直す、ADR-005 追補）
 - **`v1.0.0` は「マニフェストのスキーマが安定し `v1alpha1` を抜ける時点」である。** M4 の完成・
   テスト・フィードバック反映がその前提条件であり、`main` への初回マージを意味するのではない
 - 既存マイルストーンへのバグ修正は patch（`v0.1.1`, `v0.1.2`, …）で出す
