@@ -186,7 +186,9 @@ func (h *Handler) Describe(ctx context.Context, c api.Client, name string, w io.
 			p("  Nameserver:\t%s", ci.Nameserver)
 		}
 	}
-	p("RunStrategy:\t%s", vm.Spec.RunStrategy)
+	if vm.Spec.StartOnBoot != nil {
+		p("StartOnBoot:\t%t", *vm.Spec.StartOnBoot)
+	}
 	if len(vm.Spec.Tags) > 0 {
 		p("Tags:\t%s", strings.Join(vm.Spec.Tags, ", "))
 	}

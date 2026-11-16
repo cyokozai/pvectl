@@ -120,13 +120,10 @@ func typedConfigParams(name string, spec *Spec) map[string]any {
 	if spec.Description != "" {
 		params["description"] = spec.Description
 	}
-	// Manual (the default) leaves onboot unmanaged; only the two
-	// strategies that express an intent about boot declare the key.
-	switch spec.RunStrategy {
-	case RunStrategyAlways:
-		params["onboot"] = 1
-	case RunStrategyHalted:
-		params["onboot"] = 0
+	// onboot comes from startOnBoot alone; runStrategy is power only.
+	// Leaving startOnBoot out keeps the key unmanaged.
+	if spec.StartOnBoot != nil {
+		params["onboot"] = boolInt(*spec.StartOnBoot)
 	}
 	if len(spec.Tags) > 0 {
 		tags := append([]string(nil), spec.Tags...)
@@ -257,4 +254,12 @@ func optsSuffix(opts map[string]string) string {
 		sb.WriteString(opts[k])
 	}
 	return sb.String()
+}
+
+// boolInt renders a bool the way the Proxmox API writes flags.
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

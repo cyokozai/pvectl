@@ -11,10 +11,11 @@ import (
 	"github.com/cyokozai/pvectl/internal/resource"
 )
 
-// withPower replaces existingCT's power line (runStrategy: Always)
-// with the given spec lines; an empty string drops it.
+// withPower replaces existingCT's power lines (runStrategy: Always,
+// startOnBoot: true) with the given spec lines; an empty string drops
+// them.
 func withPower(lines string) string {
-	return strings.Replace(existing(2, "8G"), "  runStrategy: Always\n", lines, 1)
+	return strings.Replace(existing(2, "8G"), "  runStrategy: Always\n  startOnBoot: true\n", lines, 1)
 }
 
 // TestExportStoppedOnbootContainerRoundTrips is the ADR-005 §5 bug this

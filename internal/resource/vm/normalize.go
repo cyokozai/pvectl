@@ -33,6 +33,8 @@ func NormalizeRules(desired map[string]any) diff.Rules {
 		"cpu": func(cur, des string) (string, string, bool) {
 			return normalizeCPUType(cur), normalizeCPUType(des), false
 		},
+		// Live omits onboot when it was never set, which means 0.
+		"onboot": normalizeOnbootRule,
 	}
 	for key := range desired {
 		switch {
@@ -250,4 +252,15 @@ func allocationSizeBytes(s string) int64 {
 		return 0
 	}
 	return parseSizeBytes(s)
+}
+
+// normalizeOnbootRule treats a missing live onboot as 0, so a declared
+// startOnBoot: false matches a guest that never had the key set.
+//
+//nolint:unparam // the bool is fixed by the diff.Rules signature
+func normalizeOnbootRule(cur, des string) (string, string, bool) {
+	if cur == "" {
+		cur = "0"
+	}
+	return cur, des, false
 }

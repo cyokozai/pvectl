@@ -98,6 +98,7 @@ spec:
     nesting: true
     keyctl: true
   runStrategy: Always
+  startOnBoot: true
   tags: [prod, web]
 `
 

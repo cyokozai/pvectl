@@ -12,9 +12,10 @@ import (
 )
 
 // withPower replaces existingVMManifest's power lines (runStrategy:
-// Always) with the given spec lines; an empty string drops them.
+// Always, startOnBoot: true) with the given spec lines; an empty string
+// drops them.
 func withPower(lines string) string {
-	return strings.Replace(existingVMManifest, "  runStrategy: Always\n", lines, 1)
+	return strings.Replace(existingVMManifest, "  runStrategy: Always\n  startOnBoot: true\n", lines, 1)
 }
 
 // TestExportStoppedOnbootGuestRoundTrips is the ADR-005 §5 bug this
@@ -149,12 +150,12 @@ func TestCreateOnbootComesFromStartOnBoot(t *testing.T) {
 		lines string
 		want  any // nil means the key is absent
 	}{
-		"Always alone":         {"  runStrategy: Always\n", nil},
-		"Halted alone":         {"  runStrategy: Halted\n", nil},
-		"startOnBoot true":     {"  startOnBoot: true\n", 1},
-		"startOnBoot false":    {"  startOnBoot: false\n", 0},
-		"Always + false":       {"  runStrategy: Always\n  startOnBoot: false\n", 0},
-		"neither field":        {"", nil},
+		"Always alone":      {"  runStrategy: Always\n", nil},
+		"Halted alone":      {"  runStrategy: Halted\n", nil},
+		"startOnBoot true":  {"  startOnBoot: true\n", 1},
+		"startOnBoot false": {"  startOnBoot: false\n", 0},
+		"Always + false":    {"  runStrategy: Always\n  startOnBoot: false\n", 0},
+		"neither field":     {"", nil},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

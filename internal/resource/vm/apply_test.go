@@ -78,6 +78,7 @@ spec:
     ipConfig: ip=10.0.0.5/24,gw=10.0.0.1
     nameserver: 1.1.1.1
   runStrategy: Always
+  startOnBoot: true
   tags: [web, prod]
 `
 
@@ -465,7 +466,7 @@ func TestApplyRunStrategy(t *testing.T) {
 		}
 	})
 
-	t.Run("Halted stops a running VM and sets onboot=0", func(t *testing.T) {
+	t.Run("Halted stops a running VM and leaves onboot alone", func(t *testing.T) {
 		f := seededFake()
 		res, err := apply(t, f, halted, resource.ApplyOptions{})
 		if err != nil {
@@ -474,8 +475,10 @@ func TestApplyRunStrategy(t *testing.T) {
 		if len(f.Stops) != 1 || f.Stops[0].VMID != 100 {
 			t.Fatalf("Stops = %+v, want one stop of vmid 100", f.Stops)
 		}
-		if len(f.Updates) != 1 || f.Updates[0].Params["onboot"] != 0 {
-			t.Errorf("Updates = %+v, want onboot=0", f.Updates)
+		// runStrategy is power only: startOnBoot: true still matches the
+		// live onboot=1, so there is no config PUT.
+		if len(f.Updates) != 0 {
+			t.Errorf("Updates = %+v, want none", f.Updates)
 		}
 		if res.Action != resource.ActionConfigured {
 			t.Errorf("Action = %v", res.Action)
@@ -492,8 +495,8 @@ func TestApplyRunStrategy(t *testing.T) {
 			if len(f.Starts)+len(f.Stops) != 0 {
 				t.Errorf("%s: power calls = %+v %+v", label, f.Starts, f.Stops)
 			}
-			// onboot stays unmanaged: live has onboot=1 and the manifest
-			// does not declare it, so it is not a diff.
+			// startOnBoot: true matches the live onboot=1, so it is not
+			// a diff either.
 			if res.Action != resource.ActionUnchanged {
 				t.Errorf("%s: Action = %v, want unchanged (diff %+v)", label, res.Action, res.Diff)
 			}
@@ -509,8 +512,9 @@ func TestApplyRunStrategy(t *testing.T) {
 		if len(f.Starts) != 1 || f.Starts[0].VMID != 105 {
 			t.Errorf("Starts = %+v, want the new vmid started", f.Starts)
 		}
-		if f.Creates[0].Params["onboot"] != 1 {
-			t.Errorf("create params onboot = %#v", f.Creates[0].Params["onboot"])
+		// runStrategy alone does not generate onboot.
+		if v, has := f.Creates[0].Params["onboot"]; has {
+			t.Errorf("create params onboot = %#v, want absent", v)
 		}
 	})
 
@@ -533,14 +537,6 @@ func TestApplyRunStrategy(t *testing.T) {
 		_, err := apply(t, seededFake(), doc, resource.ApplyOptions{})
 		if err == nil || !strings.Contains(err.Error(), "spec.runStrategy") {
 			t.Fatalf("Apply() error = %v, want runStrategy validation error", err)
-		}
-	})
-
-	t.Run("the removed startOnBoot field points at runStrategy", func(t *testing.T) {
-		doc := strings.Replace(existingVMManifest, "runStrategy: Always", "startOnBoot: true", 1)
-		_, err := apply(t, seededFake(), doc, resource.ApplyOptions{})
-		if err == nil || !strings.Contains(err.Error(), "runStrategy") {
-			t.Fatalf("Apply() error = %v, want a hint naming runStrategy", err)
 		}
 	})
 }

@@ -135,25 +135,29 @@ func TestHandlerGet(t *testing.T) {
 		if vm.Spec.CloudInit.PasswordFrom != "" {
 			t.Error("masked cipassword must not be read back into the spec")
 		}
-		if vm.Spec.RunStrategy != RunStrategyAlways || len(vm.Spec.Tags) != 2 {
-			t.Errorf("runStrategy/tags = %v %v", vm.Spec.RunStrategy, vm.Spec.Tags)
+		if vm.Spec.RunStrategy != "" || vm.Spec.StartOnBoot == nil || !*vm.Spec.StartOnBoot || len(vm.Spec.Tags) != 2 {
+			t.Errorf("runStrategy/startOnBoot/tags = %q %v %v", vm.Spec.RunStrategy, vm.Spec.StartOnBoot, vm.Spec.Tags)
 		}
 		if vm.Status == nil || vm.Status.State != "running" || vm.Status.VMID != 100 {
 			t.Errorf("status = %+v", vm.Status)
 		}
 	})
 
-	t.Run("onboot maps back to a run strategy", func(t *testing.T) {
+	t.Run("onboot=0 exports startOnBoot false and no run strategy", func(t *testing.T) {
 		f := seededFake()
 		f.Configs[100]["onboot"] = "0"
 		obj, err := h.Get(context.Background(), f, "web-server")
 		if err != nil {
 			t.Fatalf("Get() error = %v", err)
 		}
-		// onboot=0 is Manual, not Halted: export must never ask apply to
-		// stop a VM the user did not declare stopped.
-		if got := obj.(*VM).Spec.RunStrategy; got != RunStrategyManual {
-			t.Errorf("RunStrategy = %q, want Manual", got)
+		// Export never writes runStrategy: it must not ask apply to start
+		// or stop anything. onboot becomes an explicit startOnBoot.
+		spec := obj.(*VM).Spec
+		if spec.RunStrategy != "" {
+			t.Errorf("RunStrategy = %q, want omitted", spec.RunStrategy)
+		}
+		if spec.StartOnBoot == nil || *spec.StartOnBoot {
+			t.Errorf("StartOnBoot = %v, want explicit false", spec.StartOnBoot)
 		}
 	})
 
@@ -211,7 +215,7 @@ func TestHandlerDescribe(t *testing.T) {
 		t.Fatalf("Describe() error = %v", err)
 	}
 	out := sb.String()
-	for _, want := range []string{"web-server", "100", "pve1", "running", "scsi0", "vmbr0", "admin", "prod"} {
+	for _, want := range []string{"web-server", "100", "pve1", "running", "scsi0", "vmbr0", "admin", "prod", "StartOnBoot:", "true"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("Describe() missing %q:\n%s", want, out)
 		}
