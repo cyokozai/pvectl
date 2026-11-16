@@ -73,7 +73,7 @@ pvectl get vm web-server -o yaml   # そのまま apply に戻せる
 
 | 版 | マイルストーン | スコープ |
 |---|---|---|
-| `v0.1.0`（次回） | M1 + M1.5 | `VirtualMachine`: 冪等 apply、diff、dry-run、clone、cloud-init、lifecycle、`exec` / `migrate`、`spec.raw`、`spec.runStrategy`、`cloudInit.passwordFrom` |
+| `v0.1.0`（次回） | M1 + M1.5 | `VirtualMachine`: 冪等 apply、diff、dry-run、clone、cloud-init、lifecycle、`exec` / `migrate`、`spec.raw`、`spec.runStrategy`、`spec.startOnBoot`、`cloudInit.passwordFrom` |
 | `v0.2.0` | M2 | LXC コンテナ（`kind: LinuxContainer`） |
 | `v0.3.0` | M3 | ストレージ、ネットワーク、スナップショット |
 | `v0.4.*` | M4 | プール、ユーザー、ACL、HA |

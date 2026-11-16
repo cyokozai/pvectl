@@ -142,7 +142,8 @@ pvectl describe vm web-server
 
 `apply` is idempotent: run it again and it reports `unchanged` without writing
 anything. [manifests.md](manifests.md) explains what it compares, which fields
-are immutable, and how `spec.runStrategy` controls the power state.
+are immutable, and how `spec.runStrategy` and `spec.startOnBoot` control the
+power state and `onboot`.
 
 ## 4. Verbs
 
@@ -196,7 +197,8 @@ pvectl delete -f vm.yaml
 trace in any manifest: nothing about "I ran this once" is a desired state to
 converge on, so nothing about them belongs in `spec`. The declarative
 counterpart for the power state is
-[`spec.runStrategy`](manifests.md#power-state).
+[`spec.runStrategy`](manifests.md#power-state), and for starting at node boot
+`spec.startOnBoot`.
 
 `exec` runs a command inside a guest without SSH, through the QEMU guest
 agent, and adopts the guest's stdout, stderr, and exit code as its own:

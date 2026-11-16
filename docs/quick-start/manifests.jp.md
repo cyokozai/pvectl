@@ -95,23 +95,42 @@ dry run は手前で止まる。`--dry-run=client` は API に触らずにデコ
 
 ### 電源状態
 
-設定のパスの後、apply は電源状態を `spec.runStrategy` へ収束させる。
+VM の電源にかかわることは、独立した 2 つのフィールドで書く。
+`spec.startOnBoot` は設定の一部で、Proxmox の `onboot` フラグを決める。
 
-| `runStrategy` | `onboot` | apply |
-|---|---|---|
-| `Manual`（既定） | 非管理 — キーを生成しない | 電源状態に一切触らない |
-| `Always` | `1` | 停止していれば VM を起動する |
-| `Halted` | `0` | 起動していれば VM を停止する |
+| `startOnBoot` | `onboot` |
+|---|---|
+| 省略（既定） | 非管理 — キーを生成せず、比較もしない |
+| `true` | `1` |
+| `false` | `0`（ライブの設定にキーが無いときも `0` として扱う） |
+
+設定のパスの後、apply は電源状態を `spec.runStrategy` へ収束させる。
+`runStrategy` は `onboot` に触らない。
+
+| `runStrategy` | apply |
+|---|---|
+| `Manual`（既定） | 電源状態に一切触らない |
+| `Always` | 停止していれば VM を起動する |
+| `Halted` | 起動していれば VM を停止する |
+
+2 つは自由に組み合わせられる。`runStrategy: Always` と `startOnBoot: false` を
+書けば、VM をいま動かしたまま、ノードの起動時には起動させない。
 
 電源の遷移も変化として数えるので、ほかが同一のマニフェストでも VM を動かすときは
 `configured` を報告する。`unchanged` は設定 *と* 電源状態の両方が既に一致している
 ことを意味する。`--dry-run=server` は遷移を実行せずに報告する。
 
-`get -o yaml` はライブの `onboot=1` を `Always` に、それ以外を `Manual` に写す —
-決して `Halted` には写さない。出力を再生した apply が、停止を宣言していない所有者の
-VM を停止させないためである。命令的な
+`get -o yaml` はライブの `onboot` を明示の `startOnBoot` として書き出し
+（`onboot=1` なら `true`、それ以外は `false`）、`runStrategy` は書き出さない。
+そのため書き出しを再生した apply は何も起動せず、何も停止しない。`onboot=1` のまま
+保守のために止めている VM は、止まったままである。命令的な
 [`start` / `stop`](README.jp.md#5-命令的動詞) 動詞は従来どおり使えて、`spec` に
 痕跡を残さない。
+
+> **v1alpha1 での変更:** 以前の `runStrategy` は `onboot` も決めていた
+> （`Always` → `onboot=1`、`Halted` → `onboot=0`）。いまは電源状態だけを動かす。
+> `runStrategy: Always` だけを書いたマニフェストは、以後 `onboot` を管理しない。
+> 以前と同じ動きにするには `startOnBoot: true` を書き足す。
 
 ### ガードレール
 

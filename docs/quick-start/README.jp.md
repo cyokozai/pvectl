@@ -141,8 +141,8 @@ pvectl describe vm web-server
 ```
 
 `apply` は冪等である。もう一度実行すると、何も書き込まずに `unchanged` を報告
-する。何を比較するのか、どのフィールドが immutable なのか、`spec.runStrategy` が
-電源状態をどう制御するのかは [manifests.jp.md](manifests.jp.md) にある。
+する。何を比較するのか、どのフィールドが immutable なのか、`spec.runStrategy` と
+`spec.startOnBoot` が電源状態と `onboot` をどう制御するのかは [manifests.jp.md](manifests.jp.md) にある。
 
 ## 4. 動詞
 
@@ -195,7 +195,8 @@ pvectl delete -f vm.yaml
 `start`、`stop`、`exec`、`migrate` は 1 回限りの操作である。これらはどのマニフェストにも
 痕跡を残さない。「一度これを実行した」は収束すべき望ましい状態ではないので、
 `spec` に属するものが何もない。電源状態についての宣言的な対応物は
-[`spec.runStrategy`](manifests.jp.md#電源状態) である。
+[`spec.runStrategy`](manifests.jp.md#電源状態)、ノード起動時の自動起動については
+`spec.startOnBoot` である。
 
 `exec` は SSH を使わず、QEMU guest agent 経由でゲスト内でコマンドを実行し、
 ゲスト側の stdout・stderr・exit code を自分のものとして引き受ける。

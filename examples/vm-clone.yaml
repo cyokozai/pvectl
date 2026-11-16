@@ -34,6 +34,7 @@ spec:
     ipConfig: "ip=10.0.100.20/24,gw=10.0.100.1"
     nameserver: 10.0.100.1
   runStrategy: Always
+  startOnBoot: true
   tags:
     - production
     - app

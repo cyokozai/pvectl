@@ -41,7 +41,7 @@ Reopening one of these needs a new ADR, not a pull request:
 2. Is it a **persisting desired state** (belongs in `spec`) or a **one-shot action**
    (belongs in an imperative verb, leaving no trace in `spec`)?
 
-`spec.runStrategy` (`Halted` / `Always` / `Manual`) is the declarative side;
+`spec.runStrategy` (`Halted` / `Always` / `Manual`) and `spec.startOnBoot` are the declarative side;
 `pvectl start` / `stop` / `exec` / `migrate` are the imperative side.
 
 ### Open an issue first
@@ -114,8 +114,8 @@ you do not have to disclose that you used one. What is required either way:
   [`test/pvefake`](test/pvefake/pvefake.go) and watched them pass, and you say which
   command you ran. No real cluster is needed, so there is no excuse for an untested change.
 - **You verified the facts against this codebase**, not against what a model remembers.
-  Generated answers are frequently stale: `spec.startOnBoot` no longer exists (it is
-  `spec.runStrategy`), `spec.cloudInit.password` no longer exists (it is
+  Generated answers are frequently stale: `spec.runStrategy` moves only the power
+  state and `spec.startOnBoot` alone sets `onboot`, `spec.cloudInit.password` no longer exists (it is
   `cloudInit.passwordFrom`), `spec.raw` *does* exist, `exec` and `migrate` *are*
   implemented, and `unlock` is **not**. Read
   [`internal/resource/vm/types.go`](internal/resource/vm/types.go) and

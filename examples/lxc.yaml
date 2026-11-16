@@ -63,11 +63,13 @@ spec:
     passwordFrom: env:CT_ROOT_PASSWORD
     sshKeys:
       - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... admin@example.test"
-  # Desired power state apply converges to:
+  # Desired power state apply converges to (never touches onboot):
   #   Manual (default) — apply never touches the power state
-  #   Always           — onboot=1, and apply starts the container if stopped
-  #   Halted           — onboot=0, and apply stops the container if running
+  #   Always           — apply starts the container if stopped
+  #   Halted           — apply stops the container if running
   runStrategy: Always
+  # Start the container when the node boots (onboot). Omit to leave onboot unmanaged.
+  startOnBoot: true
   tags:
     - demo
   # Escape hatch for Proxmox API config keys pvectl does not model yet,

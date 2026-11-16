@@ -73,7 +73,7 @@ pvectl get vm web-server -o yaml   # round-trips back into apply
 
 | Version | Milestone | Scope |
 |---|---|---|
-| `v0.1.0` (next) | M1 + M1.5 | `VirtualMachine`: idempotent apply, diff, dry-run, clone, cloud-init, lifecycle, `exec` / `migrate`, `spec.raw`, `spec.runStrategy`, `cloudInit.passwordFrom` |
+| `v0.1.0` (next) | M1 + M1.5 | `VirtualMachine`: idempotent apply, diff, dry-run, clone, cloud-init, lifecycle, `exec` / `migrate`, `spec.raw`, `spec.runStrategy`, `spec.startOnBoot`, `cloudInit.passwordFrom` |
 | `v0.2.0` | M2 | LXC containers (`kind: LinuxContainer`) |
 | `v0.3.0` | M3 | Storage, network, snapshots |
 | `v0.4.*` | M4 | Pools, users, ACL, HA |

@@ -70,7 +70,8 @@ pvectl apply -f ct.yaml
 | `nameserver` | |
 | `features` | `nesting`、`keyctl`、`fuse`、`mknod`。書いたフラグだけを管理する |
 | `root` | `passwordFrom`、`sshKeys`。作成時だけ送り、読み出さない（後述） |
-| `runStrategy` | VM と同じく `Manual`（既定）・`Always`・`Halted` |
+| `runStrategy` | VM と同じく `Manual`（既定）・`Always`・`Halted`。電源だけを扱い、`onboot` には触らない |
+| `startOnBoot` | VM と同じく `true` / `false` で `onboot` を決める。省略すると管理しない |
 | `tags` | |
 | `raw` | pvectl がまだ型を持たない API キー（bind mount など） |
 
