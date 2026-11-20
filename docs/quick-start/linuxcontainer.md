@@ -69,7 +69,8 @@ pvectl apply -f ct.yaml
 | `nameserver` | |
 | `features` | `nesting`, `keyctl`, `fuse`, `mknod`. Only the flags written are managed |
 | `root` | `passwordFrom`, `sshKeys`. Create-only and write-only (see below) |
-| `runStrategy` | `Manual` (default), `Always`, `Halted`, as for a VM |
+| `runStrategy` | `Manual` (default), `Always`, `Halted`, as for a VM. Power only; never touches `onboot` |
+| `startOnBoot` | `true` / `false` sets `onboot`; omitted leaves it unmanaged, as for a VM |
 | `tags` | |
 | `raw` | flat API keys pvectl does not model, such as bind mounts |
 

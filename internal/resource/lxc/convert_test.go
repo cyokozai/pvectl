@@ -40,6 +40,7 @@ func fullSpec() *Spec {
 			SSHKeys:          []string{"ssh-ed25519 AAAA a@example", "ssh-ed25519 BBBB b@example"},
 		},
 		RunStrategy: RunStrategyAlways,
+		StartOnBoot: boolPtr(true),
 		Tags:        []string{"web", "prod"},
 	}
 }
@@ -169,18 +170,21 @@ func TestNetworkInterfaceDefault(t *testing.T) {
 	}
 }
 
-func TestRunStrategyOnboot(t *testing.T) {
-	for s, want := range map[RunStrategy]any{RunStrategyAlways: 1, RunStrategyHalted: 0} {
+func TestStartOnBootOnboot(t *testing.T) {
+	for b, want := range map[bool]any{true: 1, false: 0} {
 		spec := minimalSpec()
-		spec.RunStrategy = s
+		spec.StartOnBoot = boolPtr(b)
 		if got := desiredParams("ct", spec)["onboot"]; got != want {
-			t.Errorf("%s: onboot = %v, want %v", s, got, want)
+			t.Errorf("startOnBoot %v: onboot = %v, want %v", b, got, want)
 		}
 	}
-	spec := minimalSpec()
-	spec.RunStrategy = RunStrategyManual
-	if _, has := desiredParams("ct", spec)["onboot"]; has {
-		t.Error("Manual must leave onboot unmanaged")
+	// runStrategy is power only and never generates onboot.
+	for _, s := range []RunStrategy{RunStrategyAlways, RunStrategyHalted, RunStrategyManual} {
+		spec := minimalSpec()
+		spec.RunStrategy = s
+		if v, has := desiredParams("ct", spec)["onboot"]; has {
+			t.Errorf("%s alone generated onboot = %v", s, v)
+		}
 	}
 }
 

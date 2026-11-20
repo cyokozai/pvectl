@@ -210,8 +210,8 @@ func TestRunStrategyConverges(t *testing.T) {
 	if _, stderr, err := e.run(t, "apply", "-f", write("Always")); err != nil {
 		t.Fatalf("apply(Always): %v\nstderr: %s", err, stderr)
 	}
-	if g := e.server.Guest(200); g == nil || g.Status != "running" || g.Config["onboot"] != "1" {
-		t.Fatalf("guest after Always = %+v, want running with onboot=1", g)
+	if g := e.server.Guest(200); g == nil || g.Status != "running" {
+		t.Fatalf("guest after Always = %+v, want running", g)
 	}
 
 	stdout, stderr, err := e.run(t, "apply", "-f", write("Halted"))
@@ -221,8 +221,8 @@ func TestRunStrategyConverges(t *testing.T) {
 	if !strings.Contains(stdout, "virtualmachine/e2e-vm configured") {
 		t.Fatalf("stdout = %q", stdout)
 	}
-	if g := e.server.Guest(200); g.Status != "stopped" || g.Config["onboot"] != "0" {
-		t.Fatalf("guest after Halted = %+v, want stopped with onboot=0", g)
+	if g := e.server.Guest(200); g.Status != "stopped" {
+		t.Fatalf("guest after Halted = %+v, want stopped", g)
 	}
 }
 

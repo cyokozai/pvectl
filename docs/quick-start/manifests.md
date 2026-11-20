@@ -96,24 +96,43 @@ writing. `pvectl diff -f` prints the managed keys that would change and exits
 
 ### Power state
 
-After the config pass, apply converges the power state to `spec.runStrategy`:
+Two independent fields cover what happens to the power of a VM.
+`spec.startOnBoot` is part of the config: it sets Proxmox's `onboot` flag.
 
-| `runStrategy` | `onboot` | apply |
-|---|---|---|
-| `Manual` (default) | unmanaged — the key is not generated | never touches the power state |
-| `Always` | `1` | starts the VM if it is stopped |
-| `Halted` | `0` | stops the VM if it is running |
+| `startOnBoot` | `onboot` |
+|---|---|
+| omitted (default) | unmanaged — the key is not generated or compared |
+| `true` | `1` |
+| `false` | `0` (a live config without the key counts as `0`) |
+
+After the config pass, apply converges the power state to `spec.runStrategy`.
+`runStrategy` never touches `onboot`:
+
+| `runStrategy` | apply |
+|---|---|
+| `Manual` (default) | never touches the power state |
+| `Always` | starts the VM if it is stopped |
+| `Halted` | stops the VM if it is running |
+
+The two combine freely. `runStrategy: Always` with `startOnBoot: false` keeps a
+VM running now without starting it when the node boots.
 
 A power transition counts as a change, so an otherwise identical manifest
 reports `configured` when it moves the VM; `unchanged` means the config *and*
 the power state already match. `--dry-run=server` reports the transition
 without performing it.
 
-`get -o yaml` maps a live `onboot=1` to `Always` and everything else to
-`Manual` — never to `Halted`, so replaying exported output cannot stop a VM
-whose owner never declared it stopped. The imperative
+`get -o yaml` writes the live `onboot` as an explicit `startOnBoot` (`true` for
+`onboot=1`, `false` otherwise) and never writes `runStrategy`. Replaying
+exported output therefore neither starts nor stops anything: a VM with
+`onboot=1` that is stopped for maintenance stays stopped. The imperative
 [`start` / `stop`](README.md#5-imperative-verbs) verbs remain available and
 leave no trace in `spec`.
+
+> **Changed in v1alpha1:** `runStrategy` used to set `onboot` as well
+> (`Always` → `onboot=1`, `Halted` → `onboot=0`). It now moves only the power
+> state. A manifest that wrote only `runStrategy: Always` no longer manages
+> `onboot`; add `startOnBoot: true` to keep the old behavior.
 
 ### Guardrails
 

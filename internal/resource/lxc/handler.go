@@ -195,7 +195,9 @@ func (h *Handler) Describe(ctx context.Context, c api.Client, name string, w io.
 	if opts := featureOpts(s.Features); len(opts) > 0 {
 		p("Features:\t%s", joinOpts(opts))
 	}
-	p("RunStrategy:\t%s", s.RunStrategy)
+	if s.StartOnBoot != nil {
+		p("StartOnBoot:\t%t", *s.StartOnBoot)
+	}
 	if len(s.Tags) > 0 {
 		p("Tags:\t%s", strings.Join(s.Tags, ", "))
 	}

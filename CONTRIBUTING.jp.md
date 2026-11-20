@@ -40,7 +40,7 @@ REST API の上に足すのは 4 層（認証・接続、収束、タスク待�
 2. **持続する望ましい状態**（`spec` に書く）か、**1 回限りの操作**（命令的動詞として
    提供し `spec` に痕跡を残さない）か
 
-`spec.runStrategy`（`Halted` / `Always` / `Manual`）が宣言側、
+`spec.runStrategy`（`Halted` / `Always` / `Manual`）と `spec.startOnBoot` が宣言側、
 `pvectl start` / `stop` / `exec` / `migrate` が命令側である。
 
 ### 先に issue を立てる
@@ -117,7 +117,7 @@ AI コーディングアシスタントの使用は**禁止しない**。pvectl 
   実行したコマンドを書くこと。実クラスタが不要なのだから、テストしていない変更に
   言い分は無い
 - **事実をこのコードベースで確認したこと。** 生成された回答は古いことが多い。
-  `spec.startOnBoot` は既に無い（`spec.runStrategy` である）、
+  `spec.runStrategy` は電源状態だけを動かし、`onboot` を決めるのは `spec.startOnBoot` だけである、
   `spec.cloudInit.password` も既に無い（`cloudInit.passwordFrom` である）、
   `spec.raw` は**ある**、`exec` と `migrate` は**実装済み**、`unlock` は**未実装**。
   [`internal/resource/vm/types.go`](internal/resource/vm/types.go) と
