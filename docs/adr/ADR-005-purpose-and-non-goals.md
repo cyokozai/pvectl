@@ -159,3 +159,8 @@ pvectl は `export` を一級動詞として持ち、**「export の出力をそ
 - §5 が求める e2e レベルの保証（export → apply が全件 `unchanged`）は**まだ無い**
 
 差別化軸としての位置づけは変えない。未定なのは実装時期だけである。
+
+## 追補（2026-11-16、export の時期と範囲）
+
+- **`export` は v1.0 で出す**（利用者の決定）。それまでに IaC 化の範囲・置き場所・権限の前提を決め、kind をマイナーバージョンで足していく。決めた内容は ADR-011 に置く
+- `get -o yaml` の書き出しは、onboot=1 で停止中のゲストを `runStrategy: Always` として出していた。そのまま apply すると起動し、§5 の定義（全件 `unchanged`）に反する。onboot を `spec.startOnBoot` に分け、`runStrategy` は電源だけを扱う形に改める（利用者の決定、案 A）。M1.5 で `startOnBoot` を `runStrategy` に統合したのを、意味の違う 2 つのフィールドとして戻す破壊的変更である
