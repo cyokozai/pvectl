@@ -177,7 +177,7 @@ func TestDescribe(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"Name:", "web-01", "Kind:", "LinuxContainer", "Unprivileged:", "true",
-		"RootFS:", "local-lvm 8G", "mp0:", "/data", "net0:", "bridge=vmbr0", "ip=dhcp", "vlan=10", "Features:", "nesting", "RunStrategy:", "Always"} {
+		"RootFS:", "local-lvm 8G", "mp0:", "/data", "net0:", "bridge=vmbr0", "ip=dhcp", "vlan=10", "Features:", "nesting", "StartOnBoot:", "true"} {
 		if !strings.Contains(buf.String(), want) {
 			t.Errorf("describe missing %q:\n%s", want, buf.String())
 		}

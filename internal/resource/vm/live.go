@@ -73,10 +73,11 @@ func specFromConfig(node string, cfg map[string]any) Spec {
 			},
 			Memory: cfgInt(cfg, "memory"),
 		},
-		// Live carries onboot, not an intent: onboot=1 is Always,
-		// anything else maps to Manual so export never asks apply to
-		// stop a VM the user did not ask to stop.
-		RunStrategy: runStrategyFromOnboot(cfgInt(cfg, "onboot")),
+		// onboot is exported as an explicit startOnBoot (a missing key
+		// is 0). runStrategy is left out (Manual): live carries the
+		// current power state, not an intent, so export never asks
+		// apply to start or stop anything.
+		StartOnBoot: startOnBootFromOnboot(cfgInt(cfg, "onboot")),
 		Tags:        splitSortTags(cfgString(cfg, "tags")),
 	}
 
@@ -115,12 +116,11 @@ func specFromConfig(node string, cfg map[string]any) Spec {
 	return spec
 }
 
-// runStrategyFromOnboot maps the live onboot flag back to a strategy.
-func runStrategyFromOnboot(onboot int) RunStrategy {
-	if onboot == 1 {
-		return RunStrategyAlways
-	}
-	return RunStrategyManual
+// startOnBootFromOnboot maps the live onboot flag to an explicit
+// startOnBoot: 1 is true, anything else (absent included) is false.
+func startOnBootFromOnboot(onboot int) *bool {
+	on := onboot == 1
+	return &on
 }
 
 // diskFromValue parses a live disk value; cloud-init drives and CD-ROMs

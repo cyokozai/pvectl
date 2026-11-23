@@ -66,7 +66,7 @@ func TestNewFromConfig(t *testing.T) {
 	if s.Features == nil || s.Features.Nesting == nil || !*s.Features.Nesting || s.Features.Keyctl == nil || s.Features.Fuse != nil {
 		t.Errorf("features = %+v", s.Features)
 	}
-	if s.RunStrategy != RunStrategyAlways || s.Nameserver != "10.0.0.53" || s.Description != "test ct" {
+	if s.RunStrategy != "" || s.StartOnBoot == nil || !*s.StartOnBoot || s.Nameserver != "10.0.0.53" || s.Description != "test ct" {
 		t.Errorf("spec = %+v", s)
 	}
 	if strings.Join(s.Tags, ",") != "prod,web" {

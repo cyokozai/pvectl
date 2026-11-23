@@ -6,7 +6,8 @@ import (
 	"testing"
 )
 
-func intPtr(i int) *int { return &i }
+func intPtr(i int) *int    { return &i }
+func boolPtr(b bool) *bool { return &b }
 
 // fullSpec exercises every convertible field, including the ones the
 // legacy converter silently dropped (cpu type, disk cache, cloud-init).
@@ -34,6 +35,7 @@ func fullSpec() *Spec {
 			Nameserver:       "1.1.1.1",
 		},
 		RunStrategy: RunStrategyAlways,
+		StartOnBoot: boolPtr(true),
 		Tags:        []string{"web", "prod"},
 		Description: "test vm",
 	}
